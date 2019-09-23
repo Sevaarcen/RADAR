@@ -16,6 +16,8 @@
 
 import os
 import radar.utils as utils
+import server
+from multiprocessing import Process
 
 PROMPT = "[RADAR PROMPT]"
 
@@ -71,6 +73,11 @@ def process_intercepted_command(command):
 
 
 def main():
+    # TODO Make this a command-line argument to start local server
+    print("###  Starting local RADAR Control Server (http://localhost:1794)...")
+    utils.run_system_command('python server.py &')
+    # TODO request user authorization, save data in database, make radar commands to view command history
+
     greeting()
     update_prompt()
     while True:
