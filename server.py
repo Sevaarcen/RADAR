@@ -11,7 +11,7 @@ import binascii
 default_config = {
     'host': '0.0.0.0',
     'port': 1794,
-    'database': 'mongodb://192.168.1.24:27017/',
+    'database': 'mongodb://localhost:27017/',
     'database_timeout': 3
 }
 
@@ -103,7 +103,7 @@ def database_insert_data(db_name, collection_name):
         result = collection.insert_one(json_data)
         print(result.inserted_id)
     except (binascii.Error, json.decoder.JSONDecodeError) as err:
-        return err, 400
+        return "Invalid data, it must be base 64 encoded json", 400
 
     return request.get_data()
 
@@ -132,7 +132,7 @@ def request_client_authorization():
         client_collection.insert_one(full_request)
         return str(full_request)
     else:
-        return "You must specify a username", 400
+        return "You must specify a username, superuser is optional", 400
 
 
 # TODO make this not by host, but rather user. Perhaps just use SSH?
@@ -189,6 +189,7 @@ def start():
         print(f"$$$  Connected to backend MongoDB at {default_config['database']}")
     except ServerSelectionTimeoutError as error:
         print(f"!!!  Stopping server, could not connect to MongoDB at {default_config['database']}")
+        exit(1)
 
     # Start Flask API server
     app.run(debug=True, host=default_config['host'], port=default_config['port'])
