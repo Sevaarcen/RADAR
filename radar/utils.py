@@ -16,6 +16,9 @@
 
 import tempfile
 import os
+import requests
+import json
+import base64
 
 
 def run_system_command(command):
@@ -37,3 +40,29 @@ def run_system_command(command):
         contents = temp_output_file.read()
     os.remove(temp_filepath)  # Delete temp file
     return contents
+
+
+def request_authorization(server_url):
+    friendly_name = str(input("What is your name?: "))
+    full_request_authorization_url = f'{server_url}/clients/request?username={friendly_name}'
+    request = requests.get(full_request_authorization_url)
+    if request.status_code != 200:
+        print(f"!!!  {request.status_code}")
+        response = request.text
+        print(response)
+        exit(1)
+    else:
+        print(f"Requested authorization at {server_url}")
+
+
+def send_raw_command_output(server_url, command, command_output):
+    json_data = {'command': command, 'output': command_output}
+    base64_json = base64.b64encode(json.dumps(json_data))
+    full_insert_url = f'{server_url}/database/raw/commands/insert'
+    request = requests.post(full_insert_url, data=base64_json)
+    if request.status_code != 200:
+        print(f"!!!  {request.status_code}")
+        response = request.text
+        print(response)
+    else:
+        print('... command synced w/ RADAR Control Server database')

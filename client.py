@@ -16,8 +16,7 @@
 
 import os
 import radar.utils as utils
-import server
-from multiprocessing import Process
+import sys
 
 PROMPT = "[RADAR PROMPT]"
 
@@ -26,6 +25,9 @@ INTERCEPT_COMMANDS = [
     "cd",
     "radar"
 ]
+
+# SERVER URLs
+SERVER_BASE_URL = ''
 
 
 def update_prompt():
@@ -49,6 +51,12 @@ def goodbye():
     print(' X\\    Documentation, and Automation Revolution!')
     print('XXX ')
     exit(0)
+
+
+def connect_to_server(ip_address):
+    global SERVER_BASE_URL
+    SERVER_BASE_URL = f'http://{ip_address}'
+    utils.request_authorization(SERVER_BASE_URL)
 
 
 def process_intercepted_command(command):
@@ -91,8 +99,14 @@ def main():
 
         # Else run command through system shell
         command_results = utils.run_system_command(user_input)
+        # TODO change the way the data is sent
+        utils.send_raw_command_output(SERVER_BASE_URL, user_input, command_results)
         print(command_results, end='')  # Print file as it appears
 
 
 if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        print(f"USAGE: python {sys.argv[0]} <server_ip_address>")
+        exit(-1)
+    connect_to_server(sys.argv[1])
     main()

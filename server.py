@@ -12,7 +12,7 @@ default_config = {
     'host': '0.0.0.0',
     'port': 1794,
     'database': 'mongodb://localhost:27017/',
-    'database_timeout': 3
+    'database_timeout': 2000
 }
 
 # Hook the server into Flask
@@ -37,7 +37,7 @@ def return_api_reference():
     for rule in app.url_map.iter_rules():
         routes += f'{rule}<br>'
     routes += "</html>"
-    return routes
+    return routes, 200
 
 
 # List databases and collections in those databases
@@ -55,7 +55,7 @@ def list_databases():
         # Then add that list as the value with the database name as the key
         output[database_name] = collection_names
     # Return dictionary of databases and collections
-    return output
+    return output, 200
 
 
 # Raw connection to list contents of database
@@ -74,7 +74,7 @@ def database_list_data(db_name, collection_name):
     collection = database[collection_name]
     query_results = collection.find()
     json_string = bson.json_util.dumps(query_results)
-    return jsonify(json.loads(json_string))
+    return jsonify(json.loads(json_string)), 200
 
 
 # Raw connection to insert into database
@@ -105,7 +105,7 @@ def database_insert_data(db_name, collection_name):
     except (binascii.Error, json.decoder.JSONDecodeError) as err:
         return "Invalid data, it must be base 64 encoded json", 400
 
-    return request.get_data()
+    return request.get_data(), 200
 
 
 @app.route('/clients/request', methods=['GET'])
@@ -130,7 +130,7 @@ def request_client_authorization():
             return 'User has already submitted a request', 400
         # Insert into Database
         client_collection.insert_one(full_request)
-        return str(full_request)
+        return jsonify(full_request), 200
     else:
         return "You must specify a username, superuser is optional", 400
 
@@ -148,7 +148,7 @@ def authorize_client():
         client_collection = radar_control_database['clients']
         query = {'authorized': False, 'username': username}
         query_results = client_collection.find_one_and_update(query, {'$set': {'authorized': True, 'level': level}})
-        return bson.json_util.dumps(query_results)
+        return bson.json_util.dumps(query_results), 200
     else:
         return 'You must be a superuser', 401
 
