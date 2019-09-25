@@ -80,7 +80,7 @@ def process_intercepted_command(command):
     elif 'radar' in command:
         command_split = command.split(' ', 2)
         radar_command = command_split[1]
-        radar_command_arguments = command_split[2]
+        radar_command_arguments = command_split[2] if len(command_split) > 2 else ''
         if radar_command == 'server':
             print(f"Connected to server at: {SERVER_BASE_URL}")
         elif radar_command == 'db_list':
@@ -130,7 +130,7 @@ if __name__ == '__main__':
         sys.argv[1] = 'localhost'
         proc = multiprocessing.Process(target=start_local_server)
         proc.start()
-        time.sleep(3)
+        time.sleep(4)
     main()
 
 

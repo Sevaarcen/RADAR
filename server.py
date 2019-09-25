@@ -11,7 +11,7 @@ import binascii
 default_config = {
     'host': '0.0.0.0',
     'port': 1794,
-    'database': 'mongodb://192.168.239.129:27017/',
+    'database': 'mongodb://localhost:27017/',
     'database_timeout': 2000
 }
 
