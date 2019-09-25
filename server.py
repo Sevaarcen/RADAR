@@ -11,7 +11,7 @@ import binascii
 default_config = {
     'host': '0.0.0.0',
     'port': 1794,
-    'database': 'mongodb://localhost:27017/',
+    'database': 'mongodb://192.168.239.129:27017/',
     'database_timeout': 2000
 }
 
@@ -64,11 +64,11 @@ def database_list_data(db_name, collection_name):
     print(f'###  Viewing data from {db_name}.{collection_name}')
     for protected in PROTECTED_DATABASES:
         if db_name == protected:
-            return '', 403
+            return "DB is protected and can't be accessed by the API", 403
     # Ensure user has access
     for restricted in RESTRICTED_DATABASES:
         if restricted == db_name and not is_authorized(superuser_permissions=True):
-            return '', 401
+            return "DB is restricted and you don't have correct access", 401
     global database_client
     database = database_client[db_name]
     collection = database[collection_name]
@@ -80,28 +80,27 @@ def database_list_data(db_name, collection_name):
 # Raw connection to insert into database
 @app.route('/database/<db_name>/<collection_name>/insert', methods=['POST'])
 def database_insert_data(db_name, collection_name):
-    print(f'###  Inserting at {db_name}.{collection_name}')
+    print(f'###  Database inserting data at {db_name}.{collection_name}')
     # Ensure database is not protected
+    if not is_authorized():
+        return 'Unauthorized user', 401
     for protected in PROTECTED_DATABASES:
         if db_name == protected:
-            return '', 403
+            return 'Cannot access DB via API', 403
     # Ensure user has access
     for restricted in RESTRICTED_DATABASES:
         if restricted == db_name and not is_authorized(superuser_permissions=True):
-            return '', 401
+            return 'DB restricted to superusers', 401
     encoded_data = request.get_data()
     try:
         # Parse data and get ready for insertion
-        print(encoded_data)
         raw_data = base64.b64decode(encoded_data).decode()
-        print(raw_data)
         json_data = json.loads(raw_data)
         # Load database
         global database_client
         database = database_client[db_name]
         collection = database[collection_name]
         result = collection.insert_one(json_data)
-        print(result.inserted_id)
     except (binascii.Error, json.decoder.JSONDecodeError) as err:
         return "Invalid data, it must be base 64 encoded json", 400
 
@@ -127,10 +126,10 @@ def request_client_authorization():
             full_request['authorized'] = True
         matching_clients = client_collection.find({'username': username, 'from': remote_host})
         if len(list(matching_clients)) != 0:
-            return 'User has already submitted a request', 400
+            return 'User has already submitted a request', 200
         # Insert into Database
         client_collection.insert_one(full_request)
-        return jsonify(full_request), 200
+        return f'Username "{username}", of the level {full_request["level"]} from "{remote_host}" is authorized? {full_request["authorized"]}', 200
     else:
         return "You must specify a username, superuser is optional", 400
 
@@ -192,7 +191,7 @@ def start():
         exit(1)
 
     # Start Flask API server
-    app.run(debug=True, host=default_config['host'], port=default_config['port'])
+    app.run(host=default_config['host'], port=default_config['port'])
 
 
 if __name__ == '__main__':

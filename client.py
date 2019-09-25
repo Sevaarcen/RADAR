@@ -15,8 +15,11 @@
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
-import radar.utils as utils
 import sys
+import time
+import multiprocessing
+import radar.utils as utils
+
 
 PROMPT = "[RADAR PROMPT]"
 
@@ -43,19 +46,19 @@ def greeting():
     print('XXX ')
     print()
 
-
+# TODO fix the exit functions, doesn't kill local server
 def goodbye():
     print()
     print('  / ')
     print(' |--   Thanks for participating in the Red-team Analysis,')
     print(' X\\    Documentation, and Automation Revolution!')
     print('XXX ')
-    exit(0)
+    sys.exit(0)
 
 
 def connect_to_server(ip_address):
     global SERVER_BASE_URL
-    SERVER_BASE_URL = f'http://{ip_address}'
+    SERVER_BASE_URL = f'http://{ip_address}:1794'
     utils.request_authorization(SERVER_BASE_URL)
 
 
@@ -75,15 +78,24 @@ def process_intercepted_command(command):
         except (IndexError, FileNotFoundError):
             print(f"!!!  Invalid directory: '{directory}'")
     elif 'radar' in command:
-        print("!!!  TODO")
+        command_split = command.split(' ', 2)
+        radar_command = command_split[1]
+        radar_command_arguments = command_split[2]
+        if radar_command == 'server':
+            print(f"Connected to server at: {SERVER_BASE_URL}")
+        elif radar_command == 'db_list':
+            split_args = radar_command_arguments.split(' ')
+            database = split_args[0]
+            collection = split_args[1]
+            utils.list_database_contents(SERVER_BASE_URL, database, collection)
+        else:
+            print('!!! Unknown radar command')
     else:
         print(f"!!!  Your command was intercepted but wasn't processed: {command}")
 
 
 def main():
-    # TODO Make this a command-line argument to start local server
-    print("###  Starting local RADAR Control Server (http://localhost:1794)...")
-    utils.run_system_command('python server.py &')
+    connect_to_server(sys.argv[1])
     # TODO request user authorization, save data in database, make radar commands to view command history
 
     greeting()
@@ -104,9 +116,23 @@ def main():
         print(command_results, end='')  # Print file as it appears
 
 
+def start_local_server():
+    print("###  Starting local RADAR Control Server (http://localhost:1794)...")
+    os.system('python server.py 2> server.log')
+
+
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print(f"USAGE: python {sys.argv[0]} <server_ip_address>")
-        exit(-1)
-    connect_to_server(sys.argv[1])
+        sys.exit(-1)
+    # TODO Make this a command-line argument to start local server
+    if sys.argv[1] == '!start_local':
+        sys.argv[1] = 'localhost'
+        proc = multiprocessing.Process(target=start_local_server)
+        proc.start()
+        time.sleep(3)
     main()
+
+
+
+

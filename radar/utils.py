@@ -16,6 +16,7 @@
 
 import tempfile
 import os
+import sys
 import requests
 import json
 import base64
@@ -32,7 +33,7 @@ def run_system_command(command):
     temp_output_file.close()  # Release lock on file by closing it so Python isn't using it
 
     # Run a command and pipe stdout and stderr to the temp file
-    process = os.system(f"{command} 2> {temp_filepath}")
+    process = os.system(f"{command} 2>&1 1> {temp_filepath}")
 
     # Grab command output from temp file and print it out
     contents = ""
@@ -47,22 +48,34 @@ def request_authorization(server_url):
     full_request_authorization_url = f'{server_url}/clients/request?username={friendly_name}'
     request = requests.get(full_request_authorization_url)
     if request.status_code != 200:
-        print(f"!!!  {request.status_code}")
+        print(f"!!!  HTTP Code: {request.status_code}")
         response = request.text
         print(response)
-        exit(1)
+        sys.exit(1)
     else:
         print(f"Requested authorization at {server_url}")
 
 
 def send_raw_command_output(server_url, command, command_output):
     json_data = {'command': command, 'output': command_output}
-    base64_json = base64.b64encode(json.dumps(json_data))
+    base64_json = base64.b64encode(json.dumps(json_data).encode('utf-8'))
     full_insert_url = f'{server_url}/database/raw/commands/insert'
     request = requests.post(full_insert_url, data=base64_json)
     if request.status_code != 200:
-        print(f"!!!  {request.status_code}")
+        print(f"!!!  HTTP Code: {request.status_code}")
         response = request.text
         print(response)
     else:
         print('... command synced w/ RADAR Control Server database')
+
+
+def list_database_contents(server_url, database, collection):
+    full_list_url = f'{server_url}/database/{database}/{collection}/list'
+    request = requests.get(full_list_url)
+    if request.status_code != 200:
+        print(f"!!!  HTTP Code: {request.status_code}")
+        response = request.text
+        print(response)
+    else:
+        response = request.json()
+        print(json.dumps(response, indent=4, sort_keys=True))
