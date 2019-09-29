@@ -5,3 +5,6 @@ Red-team Analysis, Documentation, and Automation Revolution
 * Modular plugin support
 * Integrates with your existing workflow
 
+# Requirements
+* Python 3.6 or later
+    * packages in requirements.txt

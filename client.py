@@ -16,7 +16,6 @@
 
 import os
 import sys
-import signal
 import time
 from multiprocessing import Process
 from importlib import reload
