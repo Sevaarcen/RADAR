@@ -15,11 +15,49 @@
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
 import tempfile
-import os
+import subprocess
 import sys
 import requests
 import json
 import base64
+import getpass
+
+
+def run_radar_command(command, server_url):
+    command_split = command.split(' ', 2)
+    if len(command_split) < 2:
+        print('!!!  No RADAR command specified')
+        return
+    radar_command = command_split[1]
+    radar_command_arguments = command_split[2] if len(command_split) > 2 else None
+
+    # Process each command
+    if radar_command == 'server':
+        print(f"Connected to server at: {server_url}")
+    elif radar_command == 'db_list':
+        if not radar_command_arguments:
+            print('!!!  You must specify a database and collection. Usage: radar db_list <database> <collection>')
+            return
+        split_args = radar_command_arguments.split(' ')
+        if len(split_args) != 2:
+            print('!!!  You must specify a database and collection. Usage: radar db_list <database> <collection>')
+            return
+        database = split_args[0]
+        collection = split_args[1]
+        list_database_contents(server_url, database, collection)
+    elif radar_command == 'request_auth':
+        print('###  Requesting authorization...')
+        request_authorization(server_url)
+    elif radar_command == 'check_auth':
+        result = get_authorization(server_url)
+        if result[1]:
+            print('You are authorized as a superuser!')
+        elif result[0]:
+            print('You are authorized.')
+        else:
+            print('You are unauthorized, please ask a superuser to authorize you...')
+    else:
+        return f'!!!  Unknown radar command: {radar_command}'
 
 
 def run_system_command(command):
@@ -28,24 +66,41 @@ def run_system_command(command):
     :return: results of that command as it would appear on the command-line
     """
     # Prepare temporary file to store command output
-    temp_output_file = tempfile.NamedTemporaryFile(suffix='.out', prefix='tmp', delete=False)
-    temp_filepath = temp_output_file.name
-    temp_output_file.close()  # Release lock on file by closing it so Python isn't using it
+    temp_output_file = tempfile.NamedTemporaryFile(prefix='tmp', suffix='.out', delete=True)
 
     # Run a command and pipe stdout and stderr to the temp file
-    process = os.system(f"{command} 2>&1 1> {temp_filepath}")
+    subprocess.run(command, shell=True, stdout=temp_output_file, stderr=temp_output_file)
 
-    # Grab command output from temp file and print it out
-    contents = ""
-    with open(temp_filepath, 'r') as temp_output_file:
-        contents = temp_output_file.read()
-    os.remove(temp_filepath)  # Delete temp file
+    temp_output_file.seek(0)  # Set head at start of file
+    contents = temp_output_file.read().decode("utf-8")  # Read contents and decode as text
+    temp_output_file.close()  # Then close the file (and delete it)
     return contents
 
 
+def is_server_online(server_url):
+    full_request_url = f'{server_url}/'
+    request = requests.get(full_request_url)
+    return request.status_code == 200
+
+
+def get_authorization(server_url):
+    full_request_url = f'{server_url}/info/authorized'
+    request = requests.get(full_request_url)
+    if request.status_code != 200:
+        print(f"!!!  HTTP Code: {request.status_code}")
+        response = request.text
+        print(response)
+        sys.exit(1)
+    else:
+        response = request.json()
+        authorized = response.get('Authorized', False)
+        su_authorized = response.get('Superuser', False)
+        return authorized, su_authorized
+
+
 def request_authorization(server_url):
-    friendly_name = str(input("What is your name?: "))
-    full_request_authorization_url = f'{server_url}/clients/request?username={friendly_name}'
+    username = getpass.getuser()
+    full_request_authorization_url = f'{server_url}/clients/request?username={username}'
     request = requests.get(full_request_authorization_url)
     if request.status_code != 200:
         print(f"!!!  HTTP Code: {request.status_code}")
@@ -53,9 +108,10 @@ def request_authorization(server_url):
         print(response)
         sys.exit(1)
     else:
-        print(f"Requested authorization at {server_url}")
+        print(f"Requested authorization: {username}@{server_url}")
 
 
+# TODO send async multi-processed like server
 def send_raw_command_output(server_url, command, command_output):
     json_data = {'command': command, 'output': command_output}
     base64_json = base64.b64encode(json.dumps(json_data).encode('utf-8'))

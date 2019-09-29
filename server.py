@@ -5,18 +5,22 @@ import bson.json_util
 import json
 import base64
 import binascii
+import sys
+import logging
 
+
+# Hook the server into Flask
+app = Flask(__name__)
+stdout = None
+stderr = None
 
 # Default RADAR Control Server configuration
-default_config = {
+DEFAULT_CONFIG = {
     'host': '0.0.0.0',
     'port': 1794,
     'database': 'mongodb://localhost:27017/',
     'database_timeout': 2000
 }
-
-# Hook the server into Flask
-app = Flask(__name__)
 
 # Database variables
 database_client = None
@@ -58,10 +62,22 @@ def list_databases():
     return output, 200
 
 
+# Returns if the user is authorized
+@app.route('/info/authorized', methods=['GET'])
+def return_is_authorized():
+    base_result = is_authorized()
+    su_result = is_authorized(superuser_permissions=True)
+    result = {
+        'Authorized': base_result,
+        'Superuser': su_result
+    }
+    return result, 200
+
+
 # Raw connection to list contents of database
 @app.route('/database/<db_name>/<collection_name>/list', methods=['GET'])
 def database_list_data(db_name, collection_name):
-    print(f'###  Viewing data from {db_name}.{collection_name}')
+    stdout.write(f'###  Viewing data from {db_name}.{collection_name}\n')
     for protected in PROTECTED_DATABASES:
         if db_name == protected:
             return "DB is protected and can't be accessed by the API", 403
@@ -80,7 +96,7 @@ def database_list_data(db_name, collection_name):
 # Raw connection to insert into database
 @app.route('/database/<db_name>/<collection_name>/insert', methods=['POST'])
 def database_insert_data(db_name, collection_name):
-    print(f'###  Database inserting data at {db_name}.{collection_name}')
+    stdout.write(f'###  Database inserting data at {db_name}.{collection_name}\n')
     # Ensure database is not protected
     if not is_authorized():
         return 'Unauthorized user', 401
@@ -135,7 +151,7 @@ def request_client_authorization():
 
 
 # TODO make this not by host, but rather user. Perhaps just use SSH?
-@app.route('/clients/authorize')
+@app.route('/clients/authorize', methods=['GET'])
 def authorize_client():
     username = request.args.get('username')
     level = 'superuser' if request.args.get('superuser') == 'True' else 'user'
@@ -155,7 +171,7 @@ def authorize_client():
 # TODO Make this actually secure rather than just being from the correct host
 def is_authorized(superuser_permissions=False):
     from_address = request.remote_addr
-    print(f'Authorizing from {from_address}')
+    stdout.write(f'###  Checking authorizing from {from_address}\n')
     # Grab registered client info from database
     global database_client
     radar_control_database = database_client['radar-control']
@@ -179,19 +195,29 @@ def number_of_clients():
     return len(query_result)
 
 
-def start():
+def start(use_stdout=sys.stdout, use_stderr=sys.stderr):
+    # Send output to specified place
+    global stdout
+    stdout = use_stdout
+    global stderr
+    stderr = use_stderr
+    # Make Flask logger also use these
+    flask_logger = logging.getLogger('werkzeug')
+    stdout_handler = logging.StreamHandler(stdout)
+    flask_logger.addHandler(stdout_handler)
+
     # Connect to database
     global database_client
-    database_client = MongoClient(default_config['database'], serverSelectionTimeoutMS=default_config['database_timeout'])
+    database_client = MongoClient(DEFAULT_CONFIG['database'], serverSelectionTimeoutMS=DEFAULT_CONFIG['database_timeout'])
     try:
         database_client.server_info()
-        print(f"$$$  Connected to backend MongoDB at {default_config['database']}")
+        stdout.write(f"$$$  Connected to backend MongoDB at {DEFAULT_CONFIG['database']}\n")
     except ServerSelectionTimeoutError as error:
-        print(f"!!!  Stopping server, could not connect to MongoDB at {default_config['database']}")
+        stderr.write(f"!!!  Stopping server, could not connect to MongoDB at {DEFAULT_CONFIG['database']}\n")
         exit(1)
 
     # Start Flask API server
-    app.run(host=default_config['host'], port=default_config['port'])
+    app.run(host=DEFAULT_CONFIG['host'], port=DEFAULT_CONFIG['port'])
 
 
 if __name__ == '__main__':
