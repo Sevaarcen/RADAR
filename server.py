@@ -37,6 +37,9 @@ RESTRICTED_DATABASES = [  # Databases which should only be accessed by superuser
 # Print site map / API reference on the index
 @app.route('/', methods=['GET'])
 def return_api_reference():
+    """ This method provides a listing of the available pages "routes" served by Flask.
+    :return: Tuple containing HTML response and HTTP status code
+    """
     routes = "<html>"
     for rule in app.url_map.iter_rules():
         routes += f'{rule}<br>'
@@ -47,6 +50,9 @@ def return_api_reference():
 # List databases and collections in those databases
 @app.route('/info/database', methods=['GET'])
 def list_databases():
+    """ This method will list the databases and collections contained in the MongoDB.
+    :return: Tuple containing the JSON response and HTTP status code
+    """
     global database_client
     output = {}
     # For every database name
@@ -65,6 +71,9 @@ def list_databases():
 # Returns if the user is authorized
 @app.route('/info/authorized', methods=['GET'])
 def return_is_authorized():
+    """ This method gives information about the requester's authentication status
+    :return: A tuple containing the JSON response and HTTP status code
+    """
     base_result = is_authorized()
     su_result = is_authorized(superuser_permissions=True)
     result = {
@@ -77,6 +86,13 @@ def return_is_authorized():
 # Raw connection to list contents of database
 @app.route('/database/<db_name>/<collection_name>/list', methods=['GET'])
 def database_list_data(db_name, collection_name):
+    """ This method provides a full list of the contents of a specific database collection.
+    This method will protect the database. Protected databases are not accessible via this method.
+    Restricted databases can only be accessed by authorized superusers.
+    :param db_name: Name of Database in MongoDB
+    :param collection_name: Name of Collection in MongoDB
+    :return: A tuple containg the JSON response and HTTP status code
+    """
     stdout.write(f'###  Viewing data from {db_name}.{collection_name}\n')
     for protected in PROTECTED_DATABASES:
         if db_name == protected:
@@ -96,6 +112,11 @@ def database_list_data(db_name, collection_name):
 # Raw connection to insert into database
 @app.route('/database/<db_name>/<collection_name>/insert', methods=['POST'])
 def database_insert_data(db_name, collection_name):
+    """ This method will insert the POST data from the request into the specified database's collection.
+    :param db_name: Name of database where the data is being inserted
+    :param collection_name: Name of collection where the data is being inserted
+    :return: A tuple containg a plain-text response and HTTP status code
+    """
     stdout.write(f'###  Database inserting data at {db_name}.{collection_name}\n')
     # Ensure database is not protected
     if not is_authorized():
@@ -120,11 +141,16 @@ def database_insert_data(db_name, collection_name):
     except (binascii.Error, json.decoder.JSONDecodeError) as err:
         return "Invalid data, it must be base 64 encoded json", 400
 
-    return request.get_data(), 200
+    return 'Inserted data successfully', 200
 
 
 @app.route('/clients/request', methods=['GET'])
 def request_client_authorization():
+    """ This method will insert the client into the database given a username as a GET parameter.
+    If no clients are in the database, the requester is automatically authorized and granted superuser privileges.
+    This method will not submit duplicate requests.
+    :return: A tuple containing the JSON response and HTTP status code
+    """
     username = request.args.get('username')
     remote_host = request.remote_addr
     if username and remote_host:
@@ -153,6 +179,10 @@ def request_client_authorization():
 # TODO make this not by host, but rather user. Perhaps just use SSH?
 @app.route('/clients/authorize', methods=['GET'])
 def authorize_client():
+    """ This method will authorize clients given a username as a GET parameter. You may also specify 'superuser=True'
+    to authorize the user as a superuser. This functionality can only be accessed by a superuser/
+    :return: A tuple containing a plain-text response and HTTP status code
+    """
     username = request.args.get('username')
     level = 'superuser' if request.args.get('superuser') == 'True' else 'user'
     if not username:
@@ -170,6 +200,10 @@ def authorize_client():
 
 # TODO Make this actually secure rather than just being from the correct host
 def is_authorized(superuser_permissions=False):
+    """ This internal method is used to verify the client is authorized.
+    :param superuser_permissions: This will cause the method to only be true if the client is an authorized superuser.
+    :return: True when the user is authorized, False otherwise
+    """
     from_address = request.remote_addr
     stdout.write(f'###  Checking authorizing from {from_address}\n')
     # Grab registered client info from database
@@ -188,6 +222,9 @@ def is_authorized(superuser_permissions=False):
 
 # Return number of authorized clients
 def number_of_clients():
+    """ This internal method returns the number of authorized clients in the database.
+    :return: The number of authorized clients.
+    """
     global database_client
     radar_control_database = database_client['radar-control']
     client_collection = radar_control_database['clients']
@@ -196,6 +233,11 @@ def number_of_clients():
 
 
 def start(use_stdout=sys.stdout, use_stderr=sys.stderr):
+    """ This internal method is used to start the Flask web server and connect to the backend Mongo database.
+    :param use_stdout: A stream to use for stdout instead of sys.stdout
+    :param use_stderr: A stream to use for stderr instead of sys.stderr
+    :return: None
+    """
     # Send output to specified place
     global stdout
     stdout = use_stdout

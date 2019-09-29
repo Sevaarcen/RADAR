@@ -36,11 +36,17 @@ server_base_url = ''
 
 
 def update_prompt():
+    """ This method updates the prompt with the current working directory
+    :return: None
+    """
     global radar_prompt
     radar_prompt = f"[RADAR] {os.getcwd()} > "
 
 
 def greeting():
+    """ This method prints out the welcome when starting the program
+    :return: None
+    """
     print()
     print('     / ')
     print('    |--   Hello there, welcome to the Red-team Analysis,')
@@ -49,8 +55,10 @@ def greeting():
     print()
 
 
-# TODO fix the exit functions, doesn't kill local server
 def goodbye():
+    """ This method kills the local server if it's running and prints the exit message
+    :return: None
+    """
     global server_process
     if server_process:
         print('###  Shutting down local server...')
@@ -71,9 +79,14 @@ def goodbye():
     sys.exit(0)
 
 
-def connect_to_server(ip_address):
+def connect_to_server(server_hostname):
+    """ This method will verify if a RADAR control server is reachable at the specified IP address.
+    This method will request authorization from the server if the client doesn't already have authorization.
+    :param server_hostname: The IP address or domain-name of the RADAR Control Server
+    :return: None
+    """
     global server_base_url
-    server_base_url = f'http://{ip_address}:1794'
+    server_base_url = f'http://{server_hostname}:1794'
     server_online = False
     max_attempts = 10
     for attempt in range(1, max_attempts + 1):
@@ -95,7 +108,7 @@ def connect_to_server(ip_address):
 def process_intercepted_command(command):
     """ This function handles how certain commands are processed that are not run as system commands.
     :param command: command as intercepted
-    :return: N/A
+    :return: None
     """
     if command == 'exit':
         goodbye()
@@ -117,6 +130,10 @@ def process_intercepted_command(command):
 
 
 def start_local_server():
+    """ Starts an instance of the RADAR Control Server using it's default configuration on localhost.
+    The server will save it's output in the 'server.log' file.
+    :return: None
+    """
     print("###  Starting local RADAR Control Server (http://localhost:1794)...")
     log_file = open('server.log', 'w')
     import server
@@ -124,6 +141,9 @@ def start_local_server():
 
 
 def client_loop():
+    """ This is the main loop functionality of RADAR. It shows the command prompt and takes user input.
+    :return: None
+    """
     update_prompt()
     while True:
         try:
@@ -136,20 +156,24 @@ def client_loop():
         if len(user_input) == 0:
             continue
 
+        # Reload the utils module so the program doesn't need to be restarted on changes
+        reload(utils)
+
         # Check if command should be processed differently from a system command
         if any(int_cmd in user_input for int_cmd in INTERCEPT_COMMANDS):
             process_intercepted_command(user_input)
             continue
 
-        reload(utils)  # Reload the utils module so the program doesn't need to be restarted on changes
         command_results = utils.run_system_command(user_input)  # Run command through user's shell
 
-        # TODO change the way the data is sent
         utils.send_raw_command_output(server_base_url, user_input, command_results)
         print(command_results, end='')  # Print file as it appears
 
 
 def main():
+    """ This method handles initial startup of the RADAR client.
+    :return: None
+    """
     if len(sys.argv) != 2:
         print(f"USAGE: python {sys.argv[0]} <server_ip_address>")
         sys.exit(-1)
