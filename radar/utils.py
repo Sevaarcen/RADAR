@@ -13,14 +13,12 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
-
-import tempfile
-import subprocess
 import sys
 import requests
 import json
 import base64
 import getpass
+from radar.objects import SystemCommand
 
 
 def run_radar_command(command, server_url):
@@ -72,23 +70,6 @@ def run_radar_command(command, server_url):
         print(f'!!!  Unknown radar command: {radar_command}')
 
 
-def run_system_command(command):
-    """ Runs a system command and returns the output
-    :param command: The string to be ran as a system command
-    :return: results of that command as it would appear on the command-line
-    """
-    # Prepare temporary file to store command output
-    temp_output_file = tempfile.NamedTemporaryFile(prefix='tmp', suffix='.out', delete=True)
-
-    # Run a command and pipe stdout and stderr to the temp file
-    subprocess.run(command, shell=True, stdout=temp_output_file, stderr=temp_output_file)
-
-    temp_output_file.seek(0)  # Set head at start of file
-    contents = temp_output_file.read().decode("utf-8")  # Read contents and decode as text
-    temp_output_file.close()  # Then close the file (and delete it)
-    return contents
-
-
 def is_server_online(server_url):
     """ Connects to the server and checks the HTTP status code
     :param server_url: The RADAR Control Server
@@ -136,14 +117,13 @@ def request_authorization(server_url):
 
 
 # TODO send async multi-processed like server
-def send_raw_command_output(server_url, command, command_output):
+def send_raw_command_output(server_url, command):
     """ Send the command and command results to the server to be inserted into the Mongo database
     :param server_url: The RADAR Control Server
-    :param command: The full command as typed
-    :param command_output: The command output as a strint (both stdout and stderr)
+    :param command: The SystemCommand object to sync
     :return: None
     """
-    json_data = {'command': command, 'output': command_output}
+    json_data = command.to_json()
     base64_json = base64.b64encode(json.dumps(json_data).encode('utf-8'))
     full_insert_url = f'{server_url}/database/raw/commands/insert'
     request = requests.post(full_insert_url, data=base64_json)

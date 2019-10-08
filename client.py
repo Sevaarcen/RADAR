@@ -17,9 +17,11 @@
 import os
 import sys
 import time
+import argparse
 from multiprocessing import Process
 from importlib import reload
 import radar.utils as utils
+from radar.objects import SystemCommand
 
 
 INTERCEPT_COMMANDS = [
@@ -163,23 +165,29 @@ def client_loop():
             process_intercepted_command(user_input)
             continue
 
-        command_results = utils.run_system_command(user_input)  # Run command through user's shell
-
-        utils.send_raw_command_output(server_base_url, user_input, command_results)
-        print(command_results, end='')  # Print file as it appears
+        system_command = SystemCommand(user_input)  # Setup command to run
+        system_command.run()  # Execute command
+        utils.send_raw_command_output(server_base_url, system_command)  # Sync w/ database
+        print(system_command.command_output, end='')  # Print command output as it would normally appear
 
 
 def main():
     """ This method handles initial startup of the RADAR client.
     :return: None
     """
-    if len(sys.argv) != 2:
-        print(f"USAGE: python {sys.argv[0]} <server_ip_address>")
-        sys.exit(-1)
+    # Handle client arguments
+    parser = argparse.ArgumentParser()
+    server_arg_group = parser.add_mutually_exclusive_group(required=True)
+    server_arg_group.add_argument('--start-local', dest='start_local_server', action="store_true",
+                                  help="Start a local instance of the RADAR Control Server and run on localhost")
+    server_arg_group.add_argument('-s', '--server', dest='server', type=str,
+                                  help="Connect to a running RADAR Control Server (hostname or IP)")
+
+    arguments = parser.parse_args()
 
     # Process request to start local server
-    if sys.argv[1] == '!start_local':
-        sys.argv[1] = 'localhost'
+    if arguments.start_local_server:
+        arguments.server = 'localhost'
         global server_process
         server_process = Process(target=start_local_server, daemon=True)
         server_process.start()
@@ -187,7 +195,7 @@ def main():
 
     # Run Commands
     greeting()
-    connect_to_server(sys.argv[1])
+    connect_to_server(arguments.server)
     client_loop()
 
 
