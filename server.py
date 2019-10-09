@@ -82,6 +82,12 @@ def return_is_authorized():
     }
     return result, 200
 
+@app.route('/info/missions', methods=['GET'])
+def get_mission_list():
+    """ This method returns the mission list
+    :return:
+    """
+
 
 # Raw connection to list contents of database
 @app.route('/database/<db_name>/<collection_name>/list', methods=['GET'])

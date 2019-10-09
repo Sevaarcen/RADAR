@@ -21,7 +21,7 @@ import argparse
 from multiprocessing import Process
 from importlib import reload
 import radar.utils as utils
-from radar.objects import SystemCommand
+from radar.objects import SystemCommand, ServerConnection
 
 
 INTERCEPT_COMMANDS = [
@@ -33,7 +33,7 @@ INTERCEPT_COMMANDS = [
 # Global variables
 radar_prompt = "[RADAR PROMPT GOES HERE]"
 server_process = None
-server_base_url = ''
+server_connection = None
 
 
 def update_prompt():
@@ -80,19 +80,20 @@ def goodbye():
     sys.exit(0)
 
 
-def connect_to_server(server_hostname):
+def connect_to_server(server_hostname: str):
     """ This method will verify if a RADAR control server is reachable at the specified IP address.
     This method will request authorization from the server if the client doesn't already have authorization.
     :param server_hostname: The IP address or domain-name of the RADAR Control Server
     :return: None
     """
-    global server_base_url
+    global server_connection
     server_base_url = f'http://{server_hostname}:1794'
+    server_connection = ServerConnection(server_base_url)
     server_online = False
     max_attempts = 10
     for attempt in range(1, max_attempts + 1):
         print(f'###  Checking if server is online: attempt {attempt}/{max_attempts}')
-        server_online = utils.is_server_online(server_base_url)
+        server_online = server_connection.is_connected()
         if server_online:
             print(f'$$$ Connected to server at: {server_base_url}')
             break
@@ -102,8 +103,8 @@ def connect_to_server(server_hostname):
         print('!!!  Unable to connect to RADAR control server, shutting down')
         sys.exit(1)
 
-    if not utils.get_authorization(server_base_url)[0]:
-        utils.request_authorization(server_base_url)
+    if not server_connection.get_authorization()[0]:
+        server_connection.request_authorization()
 
 
 def process_intercepted_command(command):
@@ -124,7 +125,8 @@ def process_intercepted_command(command):
             print(f"!!!  Invalid directory: '{directory}'")
 
     elif 'radar' in command:
-        utils.run_radar_command(command, server_base_url)
+        global server_connection
+        utils.run_radar_command(command, server_connection)
 
     else:
         print(f"!!!  Your command was intercepted but wasn't processed: {command}")
@@ -146,6 +148,7 @@ def client_loop():
     :return: None
     """
     update_prompt()
+    global server_connection
     while True:
         try:
             user_input = str(input(radar_prompt)).strip()
@@ -167,7 +170,7 @@ def client_loop():
 
         system_command = SystemCommand(user_input)  # Setup command to run
         system_command.run()  # Execute command
-        utils.send_raw_command_output(server_base_url, system_command)  # Sync w/ database
+        server_connection.send_raw_command_output(system_command)  # Sync w/ database
         print(system_command.command_output, end='')  # Print command output as it would normally appear
 
 
