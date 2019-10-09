@@ -30,18 +30,75 @@ def run_radar_command(command: str, server_connection: ServerConnection):
     radar_command_arguments = command_split[2] if len(command_split) > 2 else None
 
     # Process each command
-    if radar_command == 'server':
+    if radar_command == 'help':
+        print("""
+RADAR COMMANDS:
+server                                  (print the address you're connected to)
+mission_info                            (print info about the current mission)
+mission_list                            (list all missions that contain data)
+mission_join <name>                     (create/join a different mission)
+collection_list                         (list all collections in your current mission)
+collection_read <collection>            (list the data in the specified collection)
+mongo_list                              (lists the structure of the Mongo database)
+mongo_read <database> <collection>      (print the data from the specific database and collection)
+request_auth                            (send a request to authorize with the server)
+check_auth                              (print your authorization level)
+""")
+    elif radar_command == 'server':
         print(f"Connected to server at: {server_connection}")
 
     elif radar_command == 'art':
         print_art()
 
-    elif radar_command == 'db_list':
+    elif radar_command == 'mission_info':
+        print(f"$$$  You're currently joined to: {server_connection.mission}")
+
+    elif radar_command == 'mission_list':
+        mission_list = server_connection.get_mission_list()
+        for mission in mission_list:
+            print(f'*  {mission}')
+
+    elif radar_command == 'mission_join':
+        mission_list = server_connection.get_mission_list()
+        if any(radar_command_arguments == mission for mission in mission_list):
+            server_connection.mission = radar_command_arguments
+            print(f"###  You have joined the mission: {server_connection.mission}")
+        else:
+            create_yn = input("This mission doesn't exist yet... create it? (Y/n): ")
+            try:
+                if create_yn.lower()[0] == 'y':
+                    server_connection.mission = radar_command_arguments
+                    print(f"###  You have joined the mission: {server_connection.mission}")
+            except IndexError:
+                pass
+
+    elif radar_command == 'collection_list':
+        collection_list = server_connection.get_collection_list()
+        for collection_name in collection_list:
+            print(collection_name)
+
+    elif radar_command == 'collection_read':
         if not radar_command_arguments:
-            print('!!!  You must specify a database and collection. Usage: radar db_list <database> <collection>')
+            print('!!!  You must specify a collection in the current database')
             return
         collection = radar_command_arguments
         server_connection.list_database_contents(collection)
+
+    elif radar_command == 'mongo_list':
+        database_structure = server_connection.get_mongo_structure()
+        print(json.dumps(database_structure, indent=4, sort_keys=True))
+
+    elif radar_command == 'mongo_read':
+        if not radar_command_arguments:
+            print('!!!  You must specify a database and collection')
+            return
+        split_args = radar_command_arguments.split(' ')
+        if len(split_args) != 2:
+            print('!!!  You must specify a database and collection')
+            return
+        database = split_args[0]
+        collection = split_args[1]
+        server_connection.list_database_contents(collection, database=database)
 
     elif radar_command == 'request_auth':
         print('###  Requesting authorization...')
@@ -58,6 +115,7 @@ def run_radar_command(command: str, server_connection: ServerConnection):
 
     else:
         print(f'!!!  Unknown radar command: {radar_command}')
+        run_radar_command('radar help', server_connection)
 
 
 def print_art():

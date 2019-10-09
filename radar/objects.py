@@ -20,6 +20,7 @@ import sys
 import tempfile
 import subprocess
 import requests
+import time
 
 
 class SystemCommand:
@@ -27,11 +28,14 @@ class SystemCommand:
     def __init__(self, command: str):
         self.command = command
         self.command_output = None
+        self.execution_time_start = None
+        self.execution_time_end = None
 
     def to_json(self):
         return self.__dict__
 
     def run(self):
+        self.execution_time_start = time.time()
         # Prepare temporary file to store command output
         temp_output_file = tempfile.NamedTemporaryFile(prefix='tmp', suffix='.out', delete=True)
 
@@ -42,16 +46,21 @@ class SystemCommand:
         contents = temp_output_file.read().decode("utf-8")  # Read contents and decode as text
         temp_output_file.close()  # Then close the file (and delete it)
         self.command_output = contents
+        self.execution_time_end = time.time()
 
 
 class ServerConnection:
 
+    MISSION_PREFIX = "mission-"
+    DEFAULT_MISSION = "default"
     DEFAULT_COMMAND_COLLECTION = 'raw-commands'
 
     def __init__(self, server_url: str):
         self.server_url = server_url
+        self.is_authorized = None
+
         self.key = None
-        self.mission = 'unassigned'
+        self.mission = self.DEFAULT_MISSION
 
     def is_connected(self):
         """ Connects to the server and checks the HTTP status code
@@ -78,7 +87,10 @@ class ServerConnection:
             su_authorized = response.get('Superuser', False)
             return authorized, su_authorized
 
-    def get_mission_list(self):
+    def get_mission_list(self) -> list:
+        """ Returns a list of all missions that exist on the server
+        :return: A list of mission names that exist in the radar database
+        """
         full_request_url = f'{self.server_url}/info/missions'
         request = requests.get(full_request_url)
         if request.status_code != 200:
@@ -88,12 +100,24 @@ class ServerConnection:
             sys.exit(1)
         else:
             response = request.text
-            mission_list = response.split(',')
+            mission_list = response.split(',') if len(response) > 0 else []
+            mission_list.append(self.DEFAULT_MISSION)
             return mission_list
 
+    def get_mongo_structure(self) -> dict:
+        full_request_url = f'{self.server_url}/info/database'
+        response = requests.get(full_request_url)
+        return response.json()
+
+    def get_collection_list(self) -> list:
+        full_request_url = f'{self.server_url}/info/database'
+        response = requests.get(full_request_url)
+        database_structure = response.json()
+        collection_list = database_structure.get(f'{self.MISSION_PREFIX}{self.mission}', [])
+        return collection_list
+
     def request_authorization(self):
-        """ Sends a request to authorize the client based on their current username
-        :param server_url: The RADAR Control Server
+        """ Sends a request to authorize the client based on their current username on system
         :return: None
         """
         username = getpass.getuser()
@@ -105,7 +129,7 @@ class ServerConnection:
             print(response)
             sys.exit(1)
         else:
-            print(f"Requested authorization: {username}@{self.erver_url}")
+            print(f"Requested authorization: {username}@{self.server_url}")
 
     # TODO send async multi-processed like server
     def send_raw_command_output(self, system_command: SystemCommand):
@@ -115,7 +139,7 @@ class ServerConnection:
         """
         json_data = system_command.to_json()
         base64_json = base64.b64encode(json.dumps(json_data).encode('utf-8'))
-        full_insert_url = f'{self.server_url}/database/{self.mission}/{self.DEFAULT_COMMAND_COLLECTION}/insert'
+        full_insert_url = f'{self.server_url}/database/{self.MISSION_PREFIX}{self.mission}/{self.DEFAULT_COMMAND_COLLECTION}/insert'
         request = requests.post(full_insert_url, data=base64_json)
         if request.status_code != 200:
             print(f"!!!  HTTP Code: {request.status_code}")
@@ -124,12 +148,15 @@ class ServerConnection:
         else:
             print('... command synced w/ RADAR Control Server database')
 
-    def list_database_contents(self, collection: str):
+    def list_database_contents(self, collection: str, database=None):
         """ List the contents of one of the database collections from the server in JSON
         :param collection: The name of the collection you want to view from the current mission
+        :param database:
         :return: None
         """
-        full_list_url = f'{self.server_url}/database/{self.mission}/{collection}/list'
+        if not database:
+            database = f'{self.MISSION_PREFIX}{self.mission}'
+        full_list_url = f'{self.server_url}/database/{database}/{collection}/list'
         request = requests.get(full_list_url)
         if request.status_code != 200:
             print(f"!!!  HTTP Code: {request.status_code}")

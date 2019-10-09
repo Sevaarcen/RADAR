@@ -82,11 +82,20 @@ def return_is_authorized():
     }
     return result, 200
 
+
 @app.route('/info/missions', methods=['GET'])
 def get_mission_list():
     """ This method returns the mission list
-    :return:
+    :return: A string of mission names, seperated by commas
     """
+    global database_client
+    radar_database = database_client['radar']
+    result = ""
+    for collection in radar_database.list_collections():
+        if 'mission-' in collection['name']:
+            result += collection['name'] + ","
+    result = result[0:-1]  # Remove the trailing ','
+    return result
 
 
 # Raw connection to list contents of database
