@@ -18,7 +18,10 @@ stderr = None
 DEFAULT_CONFIG = {
     'host': '0.0.0.0',
     'port': 1794,
-    'database': 'mongodb://localhost:27017/',
+    'database_address': 'localhost',
+    'database_port': 27017,
+    'database_username': 'root',
+    'database_password': 'R4d4rD4t4b4s3!',
     'database_timeout': 2000
 }
 
@@ -178,7 +181,8 @@ def request_client_authorization():
             'authorized': False,
             'level': 'user'
         }
-        if number_of_clients() == 0:
+        # Automatically grant authorization if no clients exist yet or the request is from localhost
+        if number_of_clients() == 0 or remote_host == '127.0.0.1':
             full_request['level'] = 'superuser'
             full_request['authorized'] = True
         matching_clients = client_collection.find({'username': username, 'from': remote_host})
@@ -186,7 +190,8 @@ def request_client_authorization():
             return 'User has already submitted a request', 200
         # Insert into Database
         client_collection.insert_one(full_request)
-        return f'Username "{username}", of the level {full_request["level"]} from "{remote_host}" is authorized? {full_request["authorized"]}', 200
+        return f'Username "{username}", of the level {full_request["level"]} from "{remote_host}" is authorized?' \
+               f'{full_request["authorized"]}', 200
     else:
         return "You must specify a username, superuser is optional", 400
 
@@ -221,6 +226,9 @@ def is_authorized(superuser_permissions=False):
     """
     from_address = request.remote_addr
     stdout.write(f'###  Checking authorizing from {from_address}\n')
+    if from_address == '127.0.0.1':
+        stdout.write('###  Authorization skipped, permission automatically granted for localhost')
+        return True
     # Grab registered client info from database
     global database_client
     radar_control_database = database_client['radar-control']
@@ -265,7 +273,12 @@ def start(use_stdout=sys.stdout, use_stderr=sys.stderr):
 
     # Connect to database
     global database_client
-    database_client = MongoClient(DEFAULT_CONFIG['database'], serverSelectionTimeoutMS=DEFAULT_CONFIG['database_timeout'])
+    db_user = DEFAULT_CONFIG['database_username']
+    db_password = DEFAULT_CONFIG['database_password']
+    db_host = DEFAULT_CONFIG['database_address']
+    db_port = DEFAULT_CONFIG['database_port']
+    mongo_database_url = f"mongodb://{db_user}:{db_password}@{db_host}:{db_port}"
+    database_client = MongoClient(mongo_database_url, serverSelectionTimeoutMS=DEFAULT_CONFIG['database_timeout'])
     try:
         database_client.server_info()
         stdout.write(f"$$$  Connected to backend MongoDB at {DEFAULT_CONFIG['database']}\n")
