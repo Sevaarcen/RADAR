@@ -21,7 +21,7 @@ DEFAULT_CONFIG = {
     'database_address': 'localhost',
     'database_port': 27017,
     'database_username': 'root',
-    'database_password': 'R4d4rD4t4b4s3!',
+    'database_password': 'R4d4rD4t4b4s3',
     'database_timeout': 2000
 }
 
@@ -196,7 +196,6 @@ def request_client_authorization():
         return "You must specify a username, superuser is optional", 400
 
 
-# TODO make this not by host, but rather user. Perhaps just use SSH?
 @app.route('/clients/authorize', methods=['GET'])
 def authorize_client():
     """ This method will authorize clients given a username as a GET parameter. You may also specify 'superuser=True'
@@ -218,7 +217,6 @@ def authorize_client():
         return 'You must be a superuser', 401
 
 
-# TODO Make this actually secure rather than just being from the correct host
 def is_authorized(superuser_permissions=False):
     """ This internal method is used to verify the client is authorized.
     :param superuser_permissions: This will cause the method to only be true if the client is an authorized superuser.
@@ -281,9 +279,10 @@ def start(use_stdout=sys.stdout, use_stderr=sys.stderr):
     database_client = MongoClient(mongo_database_url, serverSelectionTimeoutMS=DEFAULT_CONFIG['database_timeout'])
     try:
         database_client.server_info()
-        stdout.write(f"$$$  Connected to backend MongoDB at {DEFAULT_CONFIG['database']}\n")
+        stdout.write(f"$$$  Connected to backend MongoDB with URL {mongo_database_url}\n")
     except ServerSelectionTimeoutError as error:
-        stderr.write(f"!!!  Stopping server, could not connect to MongoDB at {DEFAULT_CONFIG['database']}\n")
+        stderr.write(f"!!!  Stopping server, could not connect to MongoDB with URL {mongo_database_url}\n")
+        stderr.write(str(error) + "\n")
         exit(1)
 
     # Start Flask API server

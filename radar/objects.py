@@ -20,6 +20,7 @@ import sys
 import tempfile
 import subprocess
 import requests
+from requests.exceptions import ConnectionError
 import time
 
 
@@ -67,7 +68,10 @@ class ServerConnection:
             :return: True if the status code is 200, else False
             """
         full_request_url = f'{self.server_url}/'
-        request = requests.get(full_request_url)
+        try:
+            request = requests.get(full_request_url)
+        except ConnectionError:
+            return False
         return request.status_code == 200
 
     def get_authorization(self):
@@ -131,7 +135,6 @@ class ServerConnection:
         else:
             print(f"Requested authorization: {username}@{self.server_url}")
 
-    # TODO send async multi-processed like server
     def send_raw_command_output(self, system_command: SystemCommand):
         """ Send the command and command results to the server to be inserted into the Mongo database
         :param system_command: The SystemCommand object to sync
