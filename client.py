@@ -106,30 +106,56 @@ def connect_to_server(server_hostname: str):
     if not server_connection.get_authorization()[0]:
         server_connection.request_authorization()
 
+    # Check if the user is authorized, else wait until the user becomes authorized
+    while True:
+        authorized, su_authorized = server_connection.get_authorization()
+        if authorized and su_authorized:
+            print("$$$  You are authorized as a superuser")
+            break
+        elif authorized:
+            print("$$$ You are authorized")
+            break
+        else:
+            try_again_in = 3
+            print(f"You are awaiting authorization for your client: {server_connection.username}")
+            print(f"... Trying again in {try_again_in} seconds")
+            time.sleep(try_again_in)
+
+    # Join a mission by default, or create a mission if it doesn't exist
+    print()
+    print("Available missions")
+    utils.run_radar_command('radar mission_list', server_connection)
+    print()
+    join_mission_name = input("Which mission name do you want to join/create?: ")
+    utils.run_radar_command(f'radar mission_join {join_mission_name}', server_connection)
+
 
 def process_intercepted_command(command):
     """ This function handles how certain commands are processed that are not run as system commands.
     :param command: command as intercepted
     :return: None
     """
-    if command == 'exit':
-        goodbye()
+    try:
+        command_word = command.split(' ')[0]
+        if command_word == 'exit':
+            goodbye()
 
-    elif 'cd' in command:
-        directory = ""
-        try:
-            directory = command.split(' ', 1)[1]
-            os.chdir(directory)
-            update_prompt()
-        except (IndexError, FileNotFoundError):
-            print(f"!!!  Invalid directory: '{directory}'")
+        elif command_word == 'cd':
+            directory = ""
+            try:
+                directory = command.split(' ', 1)[1]
+                os.chdir(directory)
+                update_prompt()
+            except (IndexError, FileNotFoundError):
+                print(f"!!!  Invalid directory: '{directory}'")
 
-    elif 'radar' in command:
-        global server_connection
-        utils.run_radar_command(command, server_connection)
-
-    else:
-        print(f"!!!  Your command was intercepted but wasn't processed: {command}")
+        elif command_word == 'radar':
+            global server_connection
+            utils.run_radar_command(command, server_connection)
+        else:
+            print(f"!!!  Your command was intercepted by RADAR but wasn't processed: {command}")
+    except IndexError:
+        pass
 
 
 def start_local_server():
@@ -164,7 +190,7 @@ def client_loop():
         reload(utils)
 
         # Check if command should be processed differently from a system command
-        if any(int_cmd in user_input for int_cmd in INTERCEPT_COMMANDS):
+        if any(int_cmd == user_input.split(' ')[0] for int_cmd in INTERCEPT_COMMANDS):
             process_intercepted_command(user_input)
             continue
 

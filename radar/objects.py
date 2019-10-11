@@ -20,6 +20,7 @@ import sys
 import tempfile
 import subprocess
 import requests
+from requests.exceptions import ConnectionError
 import time
 
 
@@ -57,7 +58,9 @@ class ServerConnection:
 
     def __init__(self, server_url: str):
         self.server_url = server_url
+        self.username = getpass.getuser()
         self.is_authorized = None
+        self.is_superuser = None
 
         self.key = None
         self.mission = self.DEFAULT_MISSION
@@ -67,7 +70,10 @@ class ServerConnection:
             :return: True if the status code is 200, else False
             """
         full_request_url = f'{self.server_url}/'
-        request = requests.get(full_request_url)
+        try:
+            request = requests.get(full_request_url)
+        except ConnectionError:
+            return False
         return request.status_code == 200
 
     def get_authorization(self):
@@ -83,9 +89,9 @@ class ServerConnection:
             sys.exit(1)
         else:
             response = request.json()
-            authorized = response.get('Authorized', False)
-            su_authorized = response.get('Superuser', False)
-            return authorized, su_authorized
+            self.is_authorized = response.get('Authorized', False)
+            self.is_superuser = response.get('Superuser', False)
+            return self.is_authorized, self.is_superuser
 
     def get_mission_list(self) -> list:
         """ Returns a list of all missions that exist on the server
@@ -120,8 +126,7 @@ class ServerConnection:
         """ Sends a request to authorize the client based on their current username on system
         :return: None
         """
-        username = getpass.getuser()
-        full_request_authorization_url = f'{self.server_url}/clients/request?username={username}'
+        full_request_authorization_url = f'{self.server_url}/clients/request?username={self.username}'
         request = requests.get(full_request_authorization_url)
         if request.status_code != 200:
             print(f"!!!  HTTP Code: {request.status_code}")
@@ -129,9 +134,8 @@ class ServerConnection:
             print(response)
             sys.exit(1)
         else:
-            print(f"Requested authorization: {username}@{self.server_url}")
+            print(f"Requested authorization: {self.username}@{self.server_url}")
 
-    # TODO send async multi-processed like server
     def send_raw_command_output(self, system_command: SystemCommand):
         """ Send the command and command results to the server to be inserted into the Mongo database
         :param system_command: The SystemCommand object to sync

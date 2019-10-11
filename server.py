@@ -18,7 +18,12 @@ stderr = None
 DEFAULT_CONFIG = {
     'host': '0.0.0.0',
     'port': 1794,
-    'database': 'mongodb://localhost:27017/',
+    'database_address': 'localhost',
+    'database_port': 27017,
+    'database_username': 'root',
+    'database_password': 'R4d4rD4t4b4s3',
+    'key_file': 'key.pem',
+    'cert_file': 'cert.pem',
     'database_timeout': 2000
 }
 
@@ -178,7 +183,8 @@ def request_client_authorization():
             'authorized': False,
             'level': 'user'
         }
-        if number_of_clients() == 0:
+        # Automatically grant authorization if no clients exist yet or the request is from localhost
+        if number_of_clients() == 0 or remote_host == '127.0.0.1':
             full_request['level'] = 'superuser'
             full_request['authorized'] = True
         matching_clients = client_collection.find({'username': username, 'from': remote_host})
@@ -186,12 +192,12 @@ def request_client_authorization():
             return 'User has already submitted a request', 200
         # Insert into Database
         client_collection.insert_one(full_request)
-        return f'Username "{username}", of the level {full_request["level"]} from "{remote_host}" is authorized? {full_request["authorized"]}', 200
+        return f'Username "{username}", of the level {full_request["level"]} from "{remote_host}" is authorized?' \
+               f'{full_request["authorized"]}', 200
     else:
         return "You must specify a username, superuser is optional", 400
 
 
-# TODO make this not by host, but rather user. Perhaps just use SSH?
 @app.route('/clients/authorize', methods=['GET'])
 def authorize_client():
     """ This method will authorize clients given a username as a GET parameter. You may also specify 'superuser=True'
@@ -213,7 +219,6 @@ def authorize_client():
         return 'You must be a superuser', 401
 
 
-# TODO Make this actually secure rather than just being from the correct host
 def is_authorized(superuser_permissions=False):
     """ This internal method is used to verify the client is authorized.
     :param superuser_permissions: This will cause the method to only be true if the client is an authorized superuser.
@@ -221,6 +226,9 @@ def is_authorized(superuser_permissions=False):
     """
     from_address = request.remote_addr
     stdout.write(f'###  Checking authorizing from {from_address}\n')
+    if from_address == '127.0.0.1':
+        stdout.write('###  Authorization skipped, permission automatically granted for localhost')
+        return True
     # Grab registered client info from database
     global database_client
     radar_control_database = database_client['radar-control']
@@ -265,16 +273,25 @@ def start(use_stdout=sys.stdout, use_stderr=sys.stderr):
 
     # Connect to database
     global database_client
-    database_client = MongoClient(DEFAULT_CONFIG['database'], serverSelectionTimeoutMS=DEFAULT_CONFIG['database_timeout'])
+    db_user = DEFAULT_CONFIG['database_username']
+    db_password = DEFAULT_CONFIG['database_password']
+    db_host = DEFAULT_CONFIG['database_address']
+    db_port = DEFAULT_CONFIG['database_port']
+    mongo_database_url = f"mongodb://{db_user}:{db_password}@{db_host}:{db_port}"
+    database_client = MongoClient(mongo_database_url, serverSelectionTimeoutMS=DEFAULT_CONFIG['database_timeout'])
     try:
         database_client.server_info()
-        stdout.write(f"$$$  Connected to backend MongoDB at {DEFAULT_CONFIG['database']}\n")
+        stdout.write(f"$$$  Connected to backend MongoDB with URL {mongo_database_url}\n")
     except ServerSelectionTimeoutError as error:
-        stderr.write(f"!!!  Stopping server, could not connect to MongoDB at {DEFAULT_CONFIG['database']}\n")
+        stderr.write(f"!!!  Stopping server, could not connect to MongoDB with URL {mongo_database_url}\n")
+        stderr.write(str(error) + "\n")
         exit(1)
 
     # Start Flask API server
-    app.run(host=DEFAULT_CONFIG['host'], port=DEFAULT_CONFIG['port'])
+    public_key_file = DEFAULT_CONFIG.get('cert_file', None)
+    private_key_file = DEFAULT_CONFIG.get('key_file', None)
+    context = (public_key_file, private_key_file)
+    app.run(host=DEFAULT_CONFIG['host'], port=DEFAULT_CONFIG['port'], ssl_context=context)
 
 
 if __name__ == '__main__':

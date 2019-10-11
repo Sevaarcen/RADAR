@@ -25,6 +25,7 @@ def run_radar_command(command: str, server_connection: ServerConnection):
     command_split = command.split(' ', 2)
     if len(command_split) < 2:
         print('!!!  No RADAR command specified')
+        run_radar_command('radar help', server_connection)
         return
     radar_command = command_split[1]
     radar_command_arguments = command_split[2] if len(command_split) > 2 else None
@@ -59,17 +60,22 @@ check_auth                              (print your authorization level)
             print(f'*  {mission}')
 
     elif radar_command == 'mission_join':
+        mission_input = radar_command_arguments.strip()
         mission_list = server_connection.get_mission_list()
-        if any(radar_command_arguments == mission for mission in mission_list):
-            server_connection.mission = radar_command_arguments
+        if any(mission_input == mission for mission in mission_list):
+            server_connection.mission = mission_input
             print(f"###  You have joined the mission: {server_connection.mission}")
         else:
-            create_yn = input("This mission doesn't exist yet... create it? (Y/n): ")
+            create_yn = input(f"The mission '{mission_input}' doesn't exist yet... create it? (Y/n): ")
             try:
                 if create_yn.lower()[0] == 'y':
                     server_connection.mission = radar_command_arguments
                     print(f"###  You have joined the mission: {server_connection.mission}")
+                else:
+                    print(f"Request cancelled, you're joined to the mission '{server_connection.mission}'")
+                    print("Use the command: 'radar mission_join <mission_name>' the change missions later")
             except IndexError:
+                print(f"!!!  Invalid input, you're joined to the mission '{server_connection.mission}'")
                 pass
 
     elif radar_command == 'collection_list':
