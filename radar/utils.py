@@ -75,8 +75,8 @@ check_auth                              (print your authorization level)
                     print(f"Request cancelled, you're joined to the mission '{server_connection.mission}'")
                     print("Use the command: 'radar mission_join <mission_name>' the change missions later")
             except IndexError:
-                print(f"!!!  Invalid input, you're joined to the mission '{server_connection.mission}'")
-                pass
+                server_connection.mission = radar_command_arguments
+                print(f"###  You have joined the mission: {server_connection.mission}")
 
     elif radar_command == 'collection_list':
         collection_list = server_connection.get_collection_list()

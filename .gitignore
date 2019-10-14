@@ -108,3 +108,7 @@ venv.bak/
 
 # Local run files
 *.log
+
+# Ignore key files
+*.pem
+*.crt

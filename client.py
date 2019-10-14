@@ -87,21 +87,8 @@ def connect_to_server(server_hostname: str):
     :return: None
     """
     global server_connection
-    server_base_url = f'http://{server_hostname}:1794'
-    server_connection = ServerConnection(server_base_url)
-    server_online = False
-    max_attempts = 10
-    for attempt in range(1, max_attempts + 1):
-        print(f'###  Checking if server is online: attempt {attempt}/{max_attempts}')
-        server_online = server_connection.is_connected()
-        if server_online:
-            print(f'$$$ Connected to server at: {server_base_url}')
-            break
-        else:
-            time.sleep(1)
-    if not server_online:
-        print('!!!  Unable to connect to RADAR control server, shutting down')
-        sys.exit(1)
+    server_connection = ServerConnection(server_hostname)
+    server_connection.open_connection(attempt_https=True)
 
     if not server_connection.get_authorization()[0]:
         server_connection.request_authorization()
@@ -211,6 +198,8 @@ def main():
                                   help="Start a local instance of the RADAR Control Server and run on localhost")
     server_arg_group.add_argument('-s', '--server', dest='server', type=str,
                                   help="Connect to a running RADAR Control Server (hostname or IP)")
+    parser.add_argument('--trusted-ca', dest='trusted_certificate', type=str,
+                        help="Specify a certificate that can be used to verify self-signed SSL certificates")
 
     arguments = parser.parse_args()
 
@@ -221,6 +210,11 @@ def main():
         server_process = Process(target=start_local_server, daemon=True)
         server_process.start()
         time.sleep(1)
+
+    # If a trusted cert if specified, add it to the environment variables to verify HTTP requests
+    if arguments.trusted_certificate:
+        absolute_path = os.path.abspath(arguments.trusted_certificate)
+        os.environ['REQUESTS_CA_BUNDLE'] = absolute_path
 
     # Run Commands
     greeting()

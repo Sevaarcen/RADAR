@@ -291,7 +291,11 @@ def start(use_stdout=sys.stdout, use_stderr=sys.stderr):
     public_key_file = DEFAULT_CONFIG.get('cert_file', None)
     private_key_file = DEFAULT_CONFIG.get('key_file', None)
     context = (public_key_file, private_key_file)
-    app.run(host=DEFAULT_CONFIG['host'], port=DEFAULT_CONFIG['port'], ssl_context=context)
+    try:
+        app.run(host=DEFAULT_CONFIG['host'], port=DEFAULT_CONFIG['port'], ssl_context=context)
+    except FileNotFoundError:
+        stderr.write("!!!  Certificate and/or key file could not be found! Starting server w/ HTTP instead")
+        app.run(host=DEFAULT_CONFIG['host'], port=DEFAULT_CONFIG['port'])
 
 
 if __name__ == '__main__':
