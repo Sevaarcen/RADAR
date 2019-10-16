@@ -42,8 +42,9 @@ collection_list                         (list all collections in your current mi
 collection_read <collection>            (list the data in the specified collection)
 mongo_list                              (lists the structure of the Mongo database)
 mongo_read <database> <collection>      (print the data from the specific database and collection)
-request_auth                            (send a request to authorize with the server)
 check_auth                              (print your authorization level)
+request_auth                            (send a request to authorize with the server)
+grant_auth <username> (superuser)       (send a request to grant the user authorization)
 """)
     elif radar_command == 'server':
         print(f"Connected to server at: {server_connection}")
@@ -118,6 +119,18 @@ check_auth                              (print your authorization level)
             print('You are authorized.')
         else:
             print('You are unauthorized, please ask a superuser to authorize you...')
+
+    elif radar_command == 'grant_auth':
+        split_args = radar_command_arguments.split(' ')
+        if len(split_args) < 1:
+            print('!!!  You must specify a username')
+            return
+        superuser = False
+        try:
+            if 'y' in split_args[1][0].lower() or 'su' in split_args[1]:
+                superuser = True
+        except IndexError:
+            pass
 
     else:
         print(f'!!!  Unknown radar command: {radar_command}')

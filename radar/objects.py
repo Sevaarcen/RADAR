@@ -201,6 +201,17 @@ class ServerConnection:
         else:
             print(f"Requested authorization: {self.username}@{self.server_url}")
 
+    def grant_authorization(self, username, superuser=False):
+        full_url = f'{self.server_url}/clients/authorize?username={username}&superuser={superuser}'
+        request = requests.get(full_url, verify=self._verify_host)
+        if request.status_code != 200:
+            print(f"!!!  HTTP Code: {request.status_code}")
+            response = request.text
+            print(response)
+            sys.exit(1)
+        else:
+            print(request.json)
+
     def send_raw_command_output(self, system_command: SystemCommand):
         """ Send the command and command results to the server to be inserted into the Mongo database
         :param system_command: The SystemCommand object to sync
