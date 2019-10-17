@@ -45,6 +45,7 @@ mongo_read <database> <collection>      (print the data from the specific databa
 check_auth                              (print your authorization level)
 request_auth                            (send a request to authorize with the server)
 grant_auth <username> (superuser)       (send a request to grant the user authorization)
+remove_auth <username>                  (remove authorization from client given username)
 """)
     elif radar_command == 'server':
         print(f"Connected to server at: {server_connection}")
@@ -134,8 +135,13 @@ grant_auth <username> (superuser)       (send a request to grant the user author
                 superuser = True
         except IndexError:
             pass
-        server_connection.grant_authorization(split_args[0], superuser=superuser)
+        server_connection.modify_authorization(split_args[0], superuser=superuser, authorizing=True)
 
+    elif radar_command == 'remove_auth':
+        if not radar_command_arguments:
+            print('!!!  You must specify a username')
+            return
+        server_connection.modify_authorization(radar_command_arguments.strip(), authorizing=False)
 
     else:
         print(f'!!!  Unknown radar command: {radar_command}')

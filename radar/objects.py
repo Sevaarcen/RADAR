@@ -204,8 +204,11 @@ class ServerConnection:
         else:
             print(f"Requested authorization: {self.username}@{self.server_url}")
 
-    def grant_authorization(self, username, superuser=False):
-        full_url = f'{self.server_url}/clients/authorize?username={username}&superuser={superuser}'
+    def modify_authorization(self, username, superuser=False, authorizing=True):
+        if authorizing:
+            full_url = f'{self.server_url}/clients/authorize?username={username}&superuser={superuser}'
+        else:
+            full_url = f'{self.server_url}/clients/deauthorize?username={username}'
         request = requests.get(full_url, verify=self._verify_host)
         if request.status_code != 200:
             print(f"!!!  HTTP Code: {request.status_code}")

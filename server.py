@@ -219,6 +219,22 @@ def authorize_client():
         return 'You must be a superuser', 401
 
 
+@app.route('/clients/deauthorize', methods=['GET'])
+def deauthorize_client():
+    username = request.args.get('username')
+    if not username:
+        return 'You must specify a username', 400
+    if is_authorized(superuser_permissions=True):
+        global database_client
+        radar_control_database = database_client['radar-control']
+        client_collection = radar_control_database['clients']
+        query = {'authorized': True, 'username': username}
+        query_results = client_collection.update_many(query, {'$set': {'authorized': False}})
+        return f"De-authorized {query_results.matched_count} clients", 200
+    else:
+        return 'You must be a superuser', 401
+
+
 def is_authorized(superuser_permissions=False):
     """ This internal method is used to verify the client is authorized.
     :param superuser_permissions: This will cause the method to only be true if the client is an authorized superuser.
