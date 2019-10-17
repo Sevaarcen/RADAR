@@ -214,7 +214,7 @@ def authorize_client():
         client_collection = radar_control_database['clients']
         query = {'authorized': False, 'username': username}
         query_results = client_collection.update_many(query, {'$set': {'authorized': True, 'level': level}})
-        return bson.json_util.dumps(query_results), 200
+        return f"Authorized {query_results.matched_count} clients", 200
     else:
         return 'You must be a superuser', 401
 
