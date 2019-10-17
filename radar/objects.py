@@ -76,47 +76,50 @@ class ServerConnection:
             self.server_url = f'http://{self._hostname}:{self._port}'
         print(f'###  Attempting to verify connection to {self.server_url}')
         try:
-            server_online = self.attempt_to_connect(5)
-            if server_online:
-                print("$$$ Connected to the RADAR control server")
-            elif attempt_https:
-                print("!!!  An HTTPs connection could not be established")
-                try_http = input('Do you want to try using HTTP instead (data will be visible as plain-text) [y/N]?: ')
-                try:
-                    if try_http.lower()[0] == 'y':
-                        print('###  Attempting HTTP connection instead')
-                        self.server_url = f'http://{self._hostname}:{self._port}'
-                        http_server_online = self.attempt_to_connect(5)
-                        if http_server_online:
-                            print("$$$ Connected to the RADAR control server")
+            try:
+                server_online = self.attempt_to_connect(5)
+                if server_online:
+                    print("$$$ Connected to the RADAR control server")
+                elif attempt_https:
+                    print("!!!  An HTTPs connection could not be established")
+                    try_http = input('Do you want to try using HTTP instead (data will be visible as plain-text) [y/N]?: ')
+                    try:
+                        if try_http.lower()[0] == 'y':
+                            print('###  Attempting HTTP connection instead')
+                            self.server_url = f'http://{self._hostname}:{self._port}'
+                            http_server_online = self.attempt_to_connect(5)
+                            if http_server_online:
+                                print("$$$ Connected to the RADAR control server")
+                            else:
+                                print('$$$  All connection attempts failed, shutting down...')
+                                sys.exit(3)
                         else:
-                            print('$$$  All connection attempts failed, shutting down...')
-                            sys.exit(3)
+                            print('###  The server is untrusted. Please correct the error and restart the client')
+                            self._verify_host = True
+                    except IndexError:
+                        print('$$$  All connection attempts failed, shutting down...')
+                        sys.exit(3)
+            except SSLError as ssl_error:
+                print("!!! The connection encountered an SSL error")
+                print(ssl_error)
+                trust_input = input('Do you wish to turn off SSL verification - this may allow MiTM attacks [y/N]?: ')
+                try:
+                    if trust_input.lower()[0] == 'y':
+                        print('###  Blindly trusting SSL certificates and suppressing warnings...')
+                        warnings.filterwarnings("ignore", message="Unverified HTTPS request is being made. "\
+                                                                  "Adding certificate verification is strongly advised. "\
+                                                                  "See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings")
+                        self._verify_host = False
                     else:
                         print('###  The server is untrusted. Please correct the error and restart the client')
                         self._verify_host = True
+                        sys.exit(3)
                 except IndexError:
-                    print('$$$  All connection attempts failed, shutting down...')
-                    sys.exit(3)
-        except SSLError as ssl_error:
-            print("!!! The connection encountered an SSL error")
-            print(ssl_error)
-            trust_input = input('Do you wish to turn off SSL verification - this may allow MiTM attacks [y/N]?: ')
-            try:
-                if trust_input.lower()[0] == 'y':
-                    print('###  Blindly trusting SSL certificates and suppressing warnings...')
-                    warnings.filterwarnings("ignore", message="Unverified HTTPS request is being made. "\
-                                                              "Adding certificate verification is strongly advised. "\
-                                                              "See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings")
-                    self._verify_host = False
-                else:
                     print('###  The server is untrusted. Please correct the error and restart the client')
                     self._verify_host = True
                     sys.exit(3)
-            except IndexError:
-                print('###  The server is untrusted. Please correct the error and restart the client')
-                self._verify_host = True
-                sys.exit(3)
+        except KeyboardInterrupt:
+            sys.exit(1)
 
     def attempt_to_connect(self, max_attempts):
         max_attempts = 10

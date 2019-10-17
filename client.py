@@ -80,7 +80,7 @@ def goodbye():
     sys.exit(0)
 
 
-def connect_to_server(server_hostname: str):
+def startup(server_hostname: str):
     """ This method will verify if a RADAR control server is reachable at the specified IP address.
     This method will request authorization from the server if the client doesn't already have authorization.
     :param server_hostname: The IP address or domain-name of the RADAR Control Server
@@ -114,7 +114,7 @@ def connect_to_server(server_hostname: str):
     utils.run_radar_command('radar mission_list', server_connection)
     print()
     join_mission_name = input("Which mission name do you want to join/create?: ")
-    utils.run_radar_command(f'radar mission_join {join_mission_name}', server_connection)
+    utils.run_radar_command(f'radar mission_join {join_mission_name.strip()}', server_connection)
 
 
 def process_intercepted_command(command):
@@ -218,7 +218,7 @@ def main():
 
     # Run Commands
     greeting()
-    connect_to_server(arguments.server)
+    startup(arguments.server)
     client_loop()
 
 

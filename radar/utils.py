@@ -62,6 +62,9 @@ grant_auth <username> (superuser)       (send a request to grant the user author
 
     elif radar_command == 'mission_join':
         mission_input = radar_command_arguments.strip()
+        if len(mission_input) == 0:
+            print(f"###  Invalid request, returning to the mission: {server_connection.mission}")
+            return
         mission_list = server_connection.get_mission_list()
         if any(mission_input == mission for mission in mission_list):
             server_connection.mission = mission_input
@@ -107,10 +110,6 @@ grant_auth <username> (superuser)       (send a request to grant the user author
         collection = split_args[1]
         server_connection.list_database_contents(collection, database=database)
 
-    elif radar_command == 'request_auth':
-        print('###  Requesting authorization...')
-        server_connection.request_authorization()
-
     elif radar_command == 'check_auth':
         result = server_connection.get_authorization()
         if result[1]:
@@ -120,6 +119,10 @@ grant_auth <username> (superuser)       (send a request to grant the user author
         else:
             print('You are unauthorized, please ask a superuser to authorize you...')
 
+    elif radar_command == 'request_auth':
+        print('###  Requesting authorization...')
+        server_connection.request_authorization()
+
     elif radar_command == 'grant_auth':
         split_args = radar_command_arguments.split(' ')
         if len(split_args) < 1:
@@ -127,10 +130,12 @@ grant_auth <username> (superuser)       (send a request to grant the user author
             return
         superuser = False
         try:
-            if 'y' in split_args[1][0].lower() or 'su' in split_args[1]:
+            if 'true' in split_args[1].lower() or 'y' in split_args[1][0].lower() or 'su' in split_args[1]:
                 superuser = True
         except IndexError:
             pass
+        server_connection.grant_authorization(split_args[0], superuser=superuser)
+
 
     else:
         print(f'!!!  Unknown radar command: {radar_command}')
