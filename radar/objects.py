@@ -216,7 +216,7 @@ class ServerConnection:
             print(response)
             sys.exit(1)
         else:
-            print(request.json)
+            print(request.text)
 
     def send_raw_command_output(self, system_command: SystemCommand):
         """ Send the command and command results to the server to be inserted into the Mongo database
