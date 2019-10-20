@@ -18,10 +18,12 @@ import os
 import sys
 import time
 import argparse
+import json
 from multiprocessing import Process
 from importlib import reload
 import radar.utils as utils
 from radar.objects import SystemCommand, ServerConnection
+from radar.managers import CommandParserManager
 
 
 INTERCEPT_COMMANDS = [
@@ -162,6 +164,7 @@ def client_loop():
     """
     update_prompt()
     global server_connection
+    parser_manager = CommandParserManager()
     while True:
         try:
             user_input = str(input(radar_prompt)).strip()
@@ -183,6 +186,8 @@ def client_loop():
 
         system_command = SystemCommand(user_input)  # Setup command to run
         system_command.run()  # Execute command
+        parsed_results = parser_manager.parse(system_command)
+        print(json.dumps(parsed_results, indent=4, sort_keys=True))
         server_connection.send_raw_command_output(system_command)  # Sync w/ database
         print(system_command.command_output, end='')  # Print command output as it would normally appear
 
