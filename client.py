@@ -176,20 +176,18 @@ def client_loop():
         if len(user_input) == 0:
             continue
 
-        # Reload the utils module so the program doesn't need to be restarted on changes
-        reload(utils)
-
         # Check if command should be processed differently from a system command
         if any(int_cmd == user_input.split(' ')[0] for int_cmd in INTERCEPT_COMMANDS):
             process_intercepted_command(user_input)
             continue
 
         system_command = SystemCommand(user_input)  # Setup command to run
-        system_command.run()  # Execute command
-        parsed_results = parser_manager.parse(system_command)
-        print(json.dumps(parsed_results, indent=4, sort_keys=True))
-        server_connection.send_raw_command_output(system_command)  # Sync w/ database
-        print(system_command.command_output, end='')  # Print command output as it would normally appear
+        command_completed = system_command.run()  # Execute command
+        if command_completed:
+            parsed_results = parser_manager.parse(system_command)
+            print(json.dumps(parsed_results, indent=4, sort_keys=True))
+            server_connection.send_raw_command_output(system_command)  # Sync w/ database
+            print(system_command.command_output, end='')  # Print command output as it would normally appear
 
 
 def main():

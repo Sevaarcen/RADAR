@@ -43,5 +43,7 @@ class CommandParserManager:
             except ModuleNotFoundError as mnfe:
                 print(f'!!!  Missing referenced parser: {mnfe}')
             except AttributeError as ae:
-                print(f'!!!  Malformed parser: {ae}')
+                print(f'!!!  Malformed parser, you must have a "run" method: {ae}')
+            except TypeError as te:
+                print(f'!!!  Malformed parser, the run method must take in a "CommandOutput" object: {te}')
         return parse_results

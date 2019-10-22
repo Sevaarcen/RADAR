@@ -36,19 +36,24 @@ class SystemCommand:
     def to_json(self):
         return self.__dict__
 
-    def run(self):
+    def run(self) -> bool:
+        result = True
         self.execution_time_start = time.time()
         # Prepare temporary file to store command output
         temp_output_file = tempfile.NamedTemporaryFile(prefix='tmp', suffix='.out', delete=True)
+        try:
+            # Run a command and pipe stdout and stderr to the temp file
+            subprocess.run(self.command, shell=True, stdout=temp_output_file, stderr=temp_output_file)
 
-        # Run a command and pipe stdout and stderr to the temp file
-        subprocess.run(self.command, shell=True, stdout=temp_output_file, stderr=temp_output_file)
-
-        temp_output_file.seek(0)  # Set head at start of file
-        contents = temp_output_file.read().decode("utf-8")  # Read contents and decode as text
+            temp_output_file.seek(0)  # Set head at start of file
+            contents = temp_output_file.read().decode("utf-8")  # Read contents and decode as text
+        except KeyboardInterrupt:
+            print("!!!  Command cancelled by key interrupt")
+            result = False
         temp_output_file.close()  # Then close the file (and delete it)
         self.command_output = contents
         self.execution_time_end = time.time()
+        return result
 
 
 class ServerConnection:
@@ -79,7 +84,7 @@ class ServerConnection:
             try:
                 server_online = self.attempt_to_connect(5)
                 if server_online:
-                    print("$$$ Connected to the RADAR control server")
+                    print("$$$  Connected to the RADAR control server")
                 elif attempt_https:
                     print("!!!  An HTTPs connection could not be established")
                     try_http = input('Do you want to try using HTTP instead (data will be visible as plain-text) [y/N]?: ')

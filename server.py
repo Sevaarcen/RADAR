@@ -94,11 +94,10 @@ def get_mission_list():
     :return: A string of mission names, seperated by commas
     """
     global database_client
-    radar_database = database_client['radar']
     result = ""
-    for collection in radar_database.list_collections():
-        if 'mission-' in collection['name']:
-            result += collection['name'] + ","
+    for database_name in database_client.database_names():
+        if 'mission-' in database_name:
+            result += database_name + ","
     result = result[0:-1]  # Remove the trailing ','
     return result
 

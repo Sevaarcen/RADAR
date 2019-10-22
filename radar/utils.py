@@ -71,7 +71,7 @@ remove_auth <username>                  (remove authorization from client given 
             server_connection.mission = mission_input
             print(f"###  You have joined the mission: {server_connection.mission}")
         else:
-            create_yn = input(f"The mission '{mission_input}' doesn't exist yet... create it? (Y/n): ")
+            create_yn = input(f"The mission '{mission_input}' doesn't exist yet... create it? [Y/n]: ")
             try:
                 if create_yn.lower()[0] == 'y':
                     server_connection.mission = radar_command_arguments
