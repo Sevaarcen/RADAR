@@ -21,8 +21,9 @@ import tempfile
 import subprocess
 import requests
 import warnings
-from requests.exceptions import ConnectionError, SSLError
 import time
+from requests.exceptions import ConnectionError, SSLError
+import radar.constants as const
 
 
 class SystemCommand:
@@ -57,9 +58,6 @@ class SystemCommand:
 
 
 class ServerConnection:
-    MISSION_PREFIX = "mission-"
-    DEFAULT_MISSION = "default"
-    DEFAULT_COMMAND_COLLECTION = 'raw-commands'
 
     def __init__(self, hostname: str, port=1794):
         self.server_url = f'https://{hostname}:{port}'
@@ -87,7 +85,8 @@ class ServerConnection:
                     print("$$$  Connected to the RADAR control server")
                 elif attempt_https:
                     print("!!!  An HTTPs connection could not be established")
-                    try_http = input('Do you want to try using HTTP instead (data will be visible as plain-text) [y/N]?: ')
+                    try_http = input('Do you want to try using HTTP instead '
+                                     '(data will be visible as plain-text) [y/N]?: ')
                     try:
                         if try_http.lower()[0] == 'y':
                             print('###  Attempting HTTP connection instead')
@@ -111,9 +110,10 @@ class ServerConnection:
                 try:
                     if trust_input.lower()[0] == 'y':
                         print('###  Blindly trusting SSL certificates and suppressing warnings...')
-                        warnings.filterwarnings("ignore", message="Unverified HTTPS request is being made. "\
-                                                                  "Adding certificate verification is strongly advised. "\
-                                                                  "See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings")
+                        warnings.filterwarnings("ignore", message="Unverified HTTPS request is being made. "
+                                                                  "Adding certificate verification is strongly advised."
+                                                                  " See: https://urllib3.readthedocs.io/en/"
+                                                                  "latest/advanced-usage.html#ssl-warnings")
                         self._verify_host = False
                     else:
                         print('###  The server is untrusted. Please correct the error and restart the client')
@@ -223,23 +223,28 @@ class ServerConnection:
         else:
             print(request.text)
 
-    def send_raw_command_output(self, system_command: SystemCommand):
+    def send_to_database(self, collection: str, data: (list, dict)):
         """ Send the command and command results to the server to be inserted into the Mongo database
-        :param system_command: The SystemCommand object to sync
-        :return: None
+        :param collection: Which collection to sync the data to (use the constants module)
+        :param data: The JSON dict or list of dicts to insert into the database
+        :return: A boolean which is True on success
         """
-        json_data = system_command.to_json()
-        base64_json = base64.b64encode(json.dumps(json_data).encode('utf-8'))
-        full_insert_url = f'{self.server_url}/database/{self.MISSION_PREFIX}{self.mission}/{self.DEFAULT_COMMAND_COLLECTION}/insert'
-        request = requests.post(full_insert_url, data=base64_json, verify=self._verify_host)
-        if request.status_code != 200:
-            print(f"!!!  HTTP Code: {request.status_code}")
-            response = request.text
-            print(response)
-        else:
-            print('... command synced w/ RADAR Control Server database')
+        try:
+            base64_json = base64.b64encode(json.dumps(data).encode('utf-8'))
+            full_insert_url = f'{self.server_url}/database/{const.MISSION_PREFIX}{self.mission}/{collection}/insert'
+            request = requests.post(full_insert_url, data=base64_json, verify=self._verify_host)
+            if request.status_code != 200:
+                print(f"!!!  HTTP Code: {request.status_code}")
+                response = request.text
+                print(response)
+                return False
+            else:
+                return True
+        except json.decoder.JSONDecodeError:
+            print("!!!  Invalid data sent to database, cannot be JSON dumped")
+            return False
 
-    def list_database_contents(self, collection: str, database=None):
+    def get_database_contents(self, collection: str, database=None):
         """ List the contents of one of the database collections from the server in JSON
         :param collection: The name of the collection you want to view from the current mission
         :param database:
@@ -253,6 +258,7 @@ class ServerConnection:
             print(f"!!!  HTTP Code: {request.status_code}")
             response = request.text
             print(response)
+            return None
         else:
             response = request.json()
-            print(json.dumps(response, indent=4, sort_keys=True))
+            return response

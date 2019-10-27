@@ -1,12 +1,29 @@
+#  This file is part of RADAR.
+#  Copyright (C) 2019 Cole Daubenspeck
+#
+#  RADAR is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  RADAR is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
+import radar.constants as const
 import bson.json_util
 import json
 import base64
 import binascii
 import sys
 import logging
+import time
 
 
 # Hook the server into Flask
@@ -97,7 +114,7 @@ def get_mission_list():
     result = ""
     for database_name in database_client.database_names():
         if 'mission-' in database_name:
-            result += database_name + ","
+            result += database_name[len('mission-'):] + ","
     result = result[0:-1]  # Remove the trailing ','
     return result
 
@@ -151,12 +168,23 @@ def database_insert_data(db_name, collection_name):
     try:
         # Parse data and get ready for insertion
         raw_data = base64.b64decode(encoded_data).decode()
-        json_data = json.loads(raw_data)
+        parsed_data = json.loads(raw_data)
+
         # Load database
         global database_client
         database = database_client[db_name]
         collection = database[collection_name]
-        result = collection.insert_one(json_data)
+
+        # Handle inserting the data
+        if isinstance(parsed_data, dict):
+            parsed_data.update({'inserted_at': time.time()})
+            collection.insert_one(parsed_data)
+        elif isinstance(parsed_data, list):
+            for item in parsed_data:
+                if not isinstance(item, dict):
+                    return "If it's a list data must exclusively contain JSON", 400
+                item.update({'inserted_at': time.time()})
+                collection.insert_one(item)
     except (binascii.Error, json.decoder.JSONDecodeError) as err:
         return "Invalid data, it must be base 64 encoded json", 400
 

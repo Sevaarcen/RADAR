@@ -60,4 +60,7 @@ def run(command: SystemCommand,):
                 vendor = split_line[2]
                 parse_results[current_target]['details']['mac_address_vendor'] = vendor
 
-    return parse_results
+    target_info = {}
+    for target, info in parse_results.items():
+        target_info.update({target, info})
+    return parse_results, target_info

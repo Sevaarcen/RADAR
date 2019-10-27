@@ -93,7 +93,9 @@ remove_auth <username>                  (remove authorization from client given 
             print('!!!  You must specify a collection in the current database')
             return
         collection = radar_command_arguments
-        server_connection.list_database_contents(collection)
+        results = server_connection.get_database_contents(collection)
+        if results:
+            print(json.dumps(results, indent=4, sort_keys=True))
 
     elif radar_command == 'mongo_list':
         database_structure = server_connection.get_mongo_structure()
@@ -109,7 +111,9 @@ remove_auth <username>                  (remove authorization from client given 
             return
         database = split_args[0]
         collection = split_args[1]
-        server_connection.list_database_contents(collection, database=database)
+        results = server_connection.get_database_contents(collection, database=database)
+        if results:
+            print(json.dumps(results, indent=4, sort_keys=True))
 
     elif radar_command == 'check_auth':
         result = server_connection.get_authorization()

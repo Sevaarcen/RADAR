@@ -32,18 +32,27 @@ class CommandParserManager:
         return
 
     def parse(self, command: SystemCommand):
-        parse_results = {"RAW": command.to_json()}
+        """ Takes the SystemCommand and runs it through the parsers as defined in the parsing rules (yara file).
+        :param command: SystemCommand that was exectured
+        :return: Two JSON dictionaries - metadata and target data
+        """
+        metadata_results = {"RAW_COMMAND": command.to_json()}
+        target_results = {}
         matches = self.rules.match(data=command.command_output, externals={"ext_command": command.command})
         for match in matches.get('main', {}):
             try:
-                module_to_load = match.get('meta', {}).get('module')
-                parser_module = importlib.import_module(f'radar.parsers.{module_to_load}')
-                results = parser_module.run(command)
-                parse_results.update({parser_module.MODULE_NAME: results})
+                module_to_load = match.get('meta', {}).get('module', None)
+                if not module_to_load:
+                    print(f'!!!  No parser module specified for parser rule {match.get("rule")}')
+                else:
+                    parser_module = importlib.import_module(f'radar.parsers.{module_to_load}')
+                    metadata, target_data = parser_module.run(command)
+                    metadata_results.update({parser_module.MODULE_NAME: metadata})
+                    target_results.update(target_data)
             except ModuleNotFoundError as mnfe:
                 print(f'!!!  Missing referenced parser: {mnfe}')
             except AttributeError as ae:
                 print(f'!!!  Malformed parser, you must have a "run" method: {ae}')
             except TypeError as te:
                 print(f'!!!  Malformed parser, the run method must take in a "CommandOutput" object: {te}')
-        return parse_results
+        return metadata_results, target_results
