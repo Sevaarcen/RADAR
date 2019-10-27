@@ -48,12 +48,12 @@ class SystemCommand:
 
             temp_output_file.seek(0)  # Set head at start of file
             contents = temp_output_file.read().decode("utf-8")  # Read contents and decode as text
+            temp_output_file.close()  # Then close the file (and delete it)
+            self.command_output = contents
+            self.execution_time_end = time.time()
         except (KeyboardInterrupt, UnboundLocalError):
             print("!!!  Command cancelled by key interrupt")
             result = False
-        temp_output_file.close()  # Then close the file (and delete it)
-        self.command_output = contents
-        self.execution_time_end = time.time()
         return result
 
 
