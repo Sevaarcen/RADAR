@@ -22,7 +22,7 @@ from multiprocessing import Process
 import radar.radar_internals as internals
 import radar.constants as const
 from radar.objects import SystemCommand, ServerConnection
-from radar.managers import CommandParserManager
+from radar.managers import CommandParserManager, PlaybookManager
 
 
 INTERCEPT_COMMANDS = [
@@ -164,6 +164,7 @@ def client_loop():
     update_prompt()
     global server_connection
     parser_manager = CommandParserManager()
+    playbook_manager = PlaybookManager()
     while True:
         try:
             user_input = str(input(radar_prompt)).strip()
@@ -186,9 +187,12 @@ def client_loop():
             command_json = system_command.to_json()
             metadata, targets = parser_manager.parse(system_command)
             # Sync w/ database
+            print('### Syncing data with RADAR Control Server... ', end="")
             server_connection.send_to_database(const.DEFAULT_COMMAND_COLLECTION, command_json)
             server_connection.send_to_database(const.DEFAULT_METADATA_COLLECTION, metadata)
             server_connection.send_to_database(const.DEFAULT_TARGET_COLLECTION, targets)
+            print("done")
+            playbook_manager.automate(targets)
             print(system_command.command_output, end='')  # Print command output as it would normally appear
 
 
