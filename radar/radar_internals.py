@@ -129,7 +129,7 @@ remove_auth <username>                  (remove authorization from client given 
         server_connection.request_authorization()
 
     elif radar_command == 'grant_auth':
-        split_args = radar_command_arguments.split(' ')
+        split_args = radar_command_arguments.split(' ') if radar_command_arguments else []
         if len(split_args) < 1:
             print('!!!  You must specify a username')
             return

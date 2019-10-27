@@ -19,7 +19,7 @@ import sys
 import time
 import argparse
 from multiprocessing import Process
-import radar.utils as utils
+import radar.radar_internals as internals
 import radar.constants as const
 from radar.objects import SystemCommand, ServerConnection
 from radar.managers import CommandParserManager
@@ -112,10 +112,10 @@ def startup(server_hostname: str):
     # Join a mission by default, or create a mission if it doesn't exist
     print()
     print("Available missions")
-    utils.run_radar_command('radar mission_list', server_connection)
+    internals.run_radar_command('radar mission_list', server_connection)
     print()
     join_mission_name = input("Which mission name do you want to join/create?: ")
-    utils.run_radar_command(f'radar mission_join {join_mission_name.strip()}', server_connection)
+    internals.run_radar_command(f'radar mission_join {join_mission_name.strip()}', server_connection)
 
 
 def process_intercepted_command(command):
@@ -139,7 +139,7 @@ def process_intercepted_command(command):
 
         elif command_word == 'radar':
             global server_connection
-            utils.run_radar_command(command, server_connection)
+            internals.run_radar_command(command, server_connection)
         else:
             print(f"!!!  Your command was intercepted by RADAR but wasn't processed: {command}")
     except IndexError:
