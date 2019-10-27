@@ -22,8 +22,8 @@ DEFAULT_CONFIG = {
     'database_port': 27017,
     'database_username': 'root',
     'database_password': 'R4d4rD4t4b4s3',
-    'key_file': 'key.pem',
-    'cert_file': 'cert.pem',
+    'key_file': 'server.key',
+    'cert_file': 'server.crt',
     'database_timeout': 2000
 }
 
