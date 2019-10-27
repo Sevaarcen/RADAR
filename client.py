@@ -184,16 +184,17 @@ def client_loop():
         system_command = SystemCommand(user_input)  # Setup command to run
         command_completed = system_command.run()  # Execute command
         if command_completed:
+            print(system_command.command_output, end='')  # Print command output as it would normally appear
+
             command_json = system_command.to_json()
             metadata, targets = parser_manager.parse(system_command)
+            playbook_manager.automate(targets)
             # Sync w/ database
             print('### Syncing data with RADAR Control Server... ', end="")
             server_connection.send_to_database(const.DEFAULT_COMMAND_COLLECTION, command_json)
             server_connection.send_to_database(const.DEFAULT_METADATA_COLLECTION, metadata)
             server_connection.send_to_database(const.DEFAULT_TARGET_COLLECTION, targets)
             print("done")
-            playbook_manager.automate(targets)
-            print(system_command.command_output, end='')  # Print command output as it would normally appear
 
 
 def main():

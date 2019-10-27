@@ -87,6 +87,7 @@ class PlaybookManager:
         self.rules = yara.compile(self.rule_path)
 
     def automate(self, target_list: list):
+        print('============ RUNNING PLAYBOOKS ============')
         for target in target_list:
             if not isinstance(target, dict):
                 print(f"!!!  While running playbook, target wasn't a valid JSON dict: {target}")
@@ -112,3 +113,4 @@ class PlaybookManager:
                     print(f'!!!  Malformed Playbook, missing required attribute: {ae}')
                 except TypeError as te:
                     print(f'!!!  Malformed Playbook, the run method must take in the target as a dict: {te}')
+        print('===========================================')
