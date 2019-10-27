@@ -178,12 +178,14 @@ def database_insert_data(db_name, collection_name):
         # Handle inserting the data
         if isinstance(parsed_data, dict):
             parsed_data.update({'inserted_at': time.time()})
+            escape_periods_in_keys(parsed_data)
             collection.insert_one(parsed_data)
         elif isinstance(parsed_data, list):
             for item in parsed_data:
                 if not isinstance(item, dict):
                     return "If it's a list data must exclusively contain JSON", 400
                 item.update({'inserted_at': time.time()})
+                escape_periods_in_keys(item)
                 collection.insert_one(item)
     except (binascii.Error, json.decoder.JSONDecodeError) as err:
         return "Invalid data, it must be base 64 encoded json", 400
@@ -296,6 +298,18 @@ def number_of_clients():
     client_collection = radar_control_database['clients']
     query_result = list(client_collection.find({'authorized': True}))
     return len(query_result)
+
+
+def escape_periods_in_keys(data: dict):
+    """ Sanitizes key names so they don't include a dot
+    :param data:
+    :return:
+    """
+    if not isinstance(data, dict):
+        return
+    for key, value in data.items():
+        key.replace('.', '\u002E')
+        escape_periods_in_keys(value)
 
 
 def start(use_stdout=sys.stdout, use_stderr=sys.stderr):

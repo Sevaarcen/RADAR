@@ -19,20 +19,19 @@ import re
 MODULE_NAME = "PARSE_NMAP"
 
 
-def run(command: SystemCommand,):
+def run(command: SystemCommand):
     parse_results = {}
     nmap_output = command.command_output.split('\n')
     current_target = None
     for line in nmap_output:
         line = line.strip()
-        print(line)
         if 'scan report for' in line:
             current_target = line.split(' ')[4]
             parse_results[current_target] = {"services": [], 'details': {}}
         elif 'Host is' in line:
             split_line = line.split(' ')
-            parse_results[current_target]['status'] = split_line[2]
-            parse_results[current_target]['latency'] = split_line[3][1:-1]
+            parse_results[current_target]['details']['status'] = split_line[2]
+            parse_results[current_target]['details']['latency'] = split_line[3][1:-1]
         elif '/tcp' or '/udp' in line:
             regex = '^(?P<port>[0-9]+)/(?P<protocol>[a-z]+)\s+(?P<state>.*?)(\s+(?P<service>.*))?$'
             matches = re.search(regex, line)
@@ -60,7 +59,14 @@ def run(command: SystemCommand,):
                 vendor = split_line[2]
                 parse_results[current_target]['details']['mac_address_vendor'] = vendor
 
-    target_info = {}
-    for target, info in parse_results.items():
-        target_info.update({target, info})
-    return parse_results, target_info
+    target_list = []
+    for target_name, target_info in parse_results.items():
+        services = target_info['services']
+        details = target_info['details']
+        target_list.append({'target_host': target_name, 'services': services, 'details': details})
+    print("#"*100)
+    print(parse_results)
+    print("#" * 50)
+    print(target_list)
+    print("#" * 100)
+    return parse_results, target_list

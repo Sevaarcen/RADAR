@@ -48,7 +48,7 @@ class SystemCommand:
 
             temp_output_file.seek(0)  # Set head at start of file
             contents = temp_output_file.read().decode("utf-8")  # Read contents and decode as text
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, UnboundLocalError):
             print("!!!  Command cancelled by key interrupt")
             result = False
         temp_output_file.close()  # Then close the file (and delete it)
@@ -69,7 +69,7 @@ class ServerConnection:
         self.is_superuser = None
 
         self.key = None
-        self.mission = self.DEFAULT_MISSION
+        self.mission = const.DEFAULT_MISSION
 
     def __str__(self):
         return self.server_url
@@ -180,7 +180,8 @@ class ServerConnection:
         else:
             response = request.text
             mission_list = response.split(',') if len(response) > 0 else []
-            mission_list.append(self.DEFAULT_MISSION)
+            if const.DEFAULT_MISSION not in mission_list:
+                mission_list.append(const.DEFAULT_MISSION)
             return mission_list
 
     def get_mongo_structure(self) -> dict:
@@ -192,7 +193,7 @@ class ServerConnection:
         full_request_url = f'{self.server_url}/info/database'
         response = requests.get(full_request_url, verify=self._verify_host)
         database_structure = response.json()
-        collection_list = database_structure.get(f'{self.MISSION_PREFIX}{self.mission}', [])
+        collection_list = database_structure.get(f'{const.MISSION_PREFIX}{self.mission}', [])
         return collection_list
 
     def request_authorization(self):
@@ -251,7 +252,7 @@ class ServerConnection:
         :return: None
         """
         if not database:
-            database = f'{self.MISSION_PREFIX}{self.mission}'
+            database = f'{const.MISSION_PREFIX}{self.mission}'
         full_list_url = f'{self.server_url}/database/{database}/{collection}/list'
         request = requests.get(full_list_url, verify=self._verify_host)
         if request.status_code != 200:

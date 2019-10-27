@@ -37,7 +37,7 @@ class CommandParserManager:
         :return: Two JSON dictionaries - metadata and target data
         """
         metadata_results = {"RAW_COMMAND": command.to_json()}
-        target_results = {}
+        target_results = []
         matches = self.rules.match(data=command.command_output, externals={"ext_command": command.command})
         for match in matches.get('main', {}):
             try:
@@ -48,7 +48,7 @@ class CommandParserManager:
                     parser_module = importlib.import_module(f'radar.parsers.{module_to_load}')
                     metadata, target_data = parser_module.run(command)
                     metadata_results.update({parser_module.MODULE_NAME: metadata})
-                    target_results.update(target_data)
+                    target_results += target_data
             except ModuleNotFoundError as mnfe:
                 print(f'!!!  Missing referenced parser: {mnfe}')
             except AttributeError as ae:
