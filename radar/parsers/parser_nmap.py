@@ -23,12 +23,12 @@ def run(command: SystemCommand):
     target_list = []
     parse_results = {'targets': target_list}
     nmap_output = command.command_output.split('\n')
-
     for line in nmap_output:
         try:
             line = line.strip()
-
-            if 'scan report for' in line:
+            if len(line) == 0:
+                continue
+            elif 'scan report for' in line:
                 current_target = line.split(' ')[4]
                 target_list.append({'target_host': current_target, "services": [], 'details': {}})
 
@@ -37,7 +37,7 @@ def run(command: SystemCommand):
                 target_list[len(target_list)-1]['details']['status'] = split_line[2]
                 target_list[len(target_list)-1]['details']['latency'] = split_line[3][1:-1]
 
-            elif '/tcp' or '/udp' in line:
+            elif '/tcp' in line or '/udp' in line:
                 regex = '^(?P<port>[0-9]+)/(?P<protocol>[a-z]+)\s+(?P<state>.*?)(\s+(?P<service>.*))?$'
                 matches = re.search(regex, line)
                 if not matches:
@@ -55,6 +55,7 @@ def run(command: SystemCommand):
                 target_list[len(target_list)-1]['services'].append(info)
 
             elif 'Network Distance' in line:
+                print("Processing distance")
                 hop_number = line.split(' ')[1]
                 target_list[len(target_list)-1]['details']['hop_distance'] = hop_number
 
@@ -65,9 +66,11 @@ def run(command: SystemCommand):
                 if len(split_line) > 2:
                     vendor = split_line[2]
                     target_list[len(target_list)-1]['details']['mac_address_vendor'] = vendor
+                else:
+                    continue
 
             elif 'Nmap done' in line:
-                regex = '^Nmap done: (?P<total_scanned>[0-9]+) IP address(es)?'\
+                regex = '^Nmap done: (?P<total_scanned>[0-9]+) IP address(es)? ' \
                         '\((?P<total_online>[0-9]+).*?scanned in (?P<scan_duration>[0-9\.]+ .*)$'
                 matches = re.search(regex, line)
                 if not matches:
@@ -76,7 +79,7 @@ def run(command: SystemCommand):
                 parse_results['total_online'] = matches.group('total_online')
                 parse_results['scan_duration'] = matches.group('scan_duration')
 
-        except IndexError:
+        except IndexError as ie:
+            print(f"!!! Error parsing NMAP, index error: {ie}")
             continue
-
     return parse_results, target_list
