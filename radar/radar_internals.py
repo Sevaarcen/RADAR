@@ -13,6 +13,8 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
+import importlib
+
 from radar.objects import *
 
 
@@ -34,24 +36,39 @@ def run_radar_command(command: str, server_connection: ServerConnection):
     if radar_command == 'help':
         print("""
 RADAR COMMANDS:
-server                                  (print the address you're connected to)
-mission_info                            (print info about the current mission)
-mission_list                            (list all missions that contain data)
-mission_join <name>                     (create/join a different mission)
-collection_list                         (list all collections in your current mission)
-collection_read <collection>            (list the data in the specified collection)
-mongo_list                              (lists the structure of the Mongo database)
-mongo_read <database> <collection>      (print the data from the specific database and collection)
-check_auth                              (print your authorization level)
-request_auth                            (send a request to authorize with the server)
-grant_auth <username> (superuser)       (send a request to grant the user authorization)
-remove_auth <username>                  (remove authorization from client given username)
+server                                      (print the address you're connected to)
+playbook <playbook_name> <target> (args)    (manually run a playbook on the target. args are added to the target dict)
+mission_info                                (print info about the current mission)
+mission_list                                (list all missions that contain data)
+mission_join <name>                         (create/join a different mission)
+collection_list                             (list all collections in your current mission)
+collection_read <collection>                (list the data in the specified collection)
+mongo_list                                  (lists the structure of the Mongo database)
+mongo_read <database> <collection>          (print the data from the specific database and collection)
+check_auth                                  (print your authorization level)
+request_auth                                (send a request to authorize with the server)
+grant_auth <username> (superuser)           (send a request to grant the user authorization)
+remove_auth <username>                      (remove authorization from client given username)
 """)
     elif radar_command == 'server':
         print(f"Connected to server at: {server_connection}")
 
     elif radar_command == 'art':
         print_art()
+
+    elif radar_command == 'playbook':
+        if not radar_command_arguments:
+            print('!!!  No arguments given for running a manual playbook')
+            return
+        else:
+            playbook_args = radar_command_arguments.split(' ')
+            if len(playbook_args) < 2:
+                print('!!!  Invalid number of arguments for running a manual playbook')
+                return
+            playbook_name = playbook_args[0]
+            target_host = playbook_args[1]
+            args = playbook_args[2:]
+            run_playbook(playbook_name, target_host, args)
 
     elif radar_command == 'mission_info':
         print(f"$$$  You're currently joined to: {server_connection.mission}")
@@ -180,3 +197,21 @@ def print_art():
                      `"Y8ba,             ,ad8P"'
                           ``""YYbaaadPP""''
             ''')
+
+
+def run_playbook(playbook: str, target_host: str, args: list):
+    print(f'###  Manually executing playbook: {playbook}')
+    manual_target = {'target_host': target_host}
+    for i in range(0, len(args)):
+        manual_target[f'arg{i}'] = args[i]
+    try:
+        playbook_module = importlib.import_module(f'radar.playbooks.{playbook}')
+        playbook_module.run(manual_target)
+    except ModuleNotFoundError as mnfe:
+        print(f'!!!  Missing referenced Playbook: {mnfe}')
+    except AttributeError as ae:
+        print(f'!!!  Malformed Playbook, missing required attribute: {ae}')
+    except TypeError as te:
+        print(f'!!!  Malformed Playbook, the run method must take in the target as a dict: {te}')
+    except KeyboardInterrupt:
+        print("!!!  Command cancelled by key interrupt")

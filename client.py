@@ -187,10 +187,12 @@ def client_loop():
             print(system_command.command_output, end='')  # Print command output as it would normally appear
 
             command_json = system_command.to_json()
-            metadata, targets = parser_manager.parse(system_command)
-            playbook_manager.automate(targets)
+            metadata, targets = parser_manager.parse(system_command)  # Conditionally parse command
+            print('============ RUNNING PLAYBOOKS ============')
+            playbook_manager.automate(targets)  # Conditionally run Playbooks
+            print('===========================================')
             # Sync w/ database
-            print('### Syncing data with RADAR Control Server... ', end="")
+            print('###  Syncing data with RADAR Control Server... ', end="")
             server_connection.send_to_database(const.DEFAULT_COMMAND_COLLECTION, command_json)
             server_connection.send_to_database(const.DEFAULT_METADATA_COLLECTION, metadata)
             server_connection.send_to_database(const.DEFAULT_TARGET_COLLECTION, targets)

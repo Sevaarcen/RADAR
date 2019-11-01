@@ -13,22 +13,19 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
-from ftplib import FTP, error_perm
+from ftplib import FTP
 
 
 def run(target: dict):
     target_host = target.get('target_host', None)
     if not target_host:
-        print(f'!!!  Scan Anonymous FTP failed, no target_host specified: {target}')
+        print(f'!!!  FTP directory listing failed, no target_host specified: {target}')
         return
-    try:
-        ftp_connection = FTP(target_host)
-        ftp_connection.login()  # Login anonymous
-        print(f'$$$  {target_host} is vulnerable to Anonymous FTP Login')
-        target_vulns = target.get('vulnerabilities', None)
-        if target_vulns:
-            target_vulns.append('Anonymous FTP Login')
-        else:
-            target['vulnerabilities'] = ['Anonymous FTP Login']
-    except (ConnectionRefusedError, error_perm):
-        return
+    ftp_connection = FTP(target_host)
+    ftp_connection.login()
+    files = ftp_connection.nlst()
+    print(f'$$$  These files/directories were on the anonymous FTP server: {files}')
+    # Add info to metadata
+    if not target.get('details', None):
+        target['details'] = {}
+    target['details']['ftp_server_contents'] = files

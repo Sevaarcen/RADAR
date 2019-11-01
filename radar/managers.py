@@ -87,7 +87,7 @@ class PlaybookManager:
         self.rules = yara.compile(self.rule_path)
 
     def automate(self, target_list: list, skip_list=[]):
-        print('============ RUNNING PLAYBOOKS ============')
+        new_skip_list = skip_list
         for target in target_list:
             if not isinstance(target, dict):
                 print(f"!!!  While running playbook, target wasn't a valid JSON dict: {target}")
@@ -107,12 +107,12 @@ class PlaybookManager:
                     elif module_to_load not in skip_list:
                         playbook_module = importlib.import_module(f'radar.playbooks.{module_to_load}')
                         playbook_module.run(target)
-                        new_skip_list = skip_list.append(module_to_load)
+                        new_skip_list.append(module_to_load)  # Don't rerun the same Playbook, prevent infinite loop
                         self.automate(target_list, skip_list=new_skip_list)  # Recursive
+                        return  # Ensure only 1 module is executed per iteration of this method
                 except ModuleNotFoundError as mnfe:
                     print(f'!!!  Missing referenced Playbook: {mnfe}')
                 except AttributeError as ae:
                     print(f'!!!  Malformed Playbook, missing required attribute: {ae}')
                 except TypeError as te:
                     print(f'!!!  Malformed Playbook, the run method must take in the target as a dict: {te}')
-        print('===========================================')

@@ -10,3 +10,14 @@ rule scan_anonymous_ftp {
     condition:
         all of them
 }
+rule grab_ftp_file_list {
+    meta:
+        author = "Cole Daubenspeck"
+        updated = "20191031"
+        description = "Get a list of files on the anonymous FTP server"
+        module = "grab_ftp_file_list"
+    strings:
+        $vuln = "Anonymous FTP Login"
+    condition:
+        all of them
+}
