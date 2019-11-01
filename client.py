@@ -195,7 +195,8 @@ def client_loop():
             print('###  Syncing data with RADAR Control Server... ', end="")
             server_connection.send_to_database(const.DEFAULT_COMMAND_COLLECTION, command_json)
             server_connection.send_to_database(const.DEFAULT_METADATA_COLLECTION, metadata)
-            server_connection.send_to_database(const.DEFAULT_TARGET_COLLECTION, targets)
+            if len(targets) != 0:
+                server_connection.send_to_database(const.DEFAULT_TARGET_COLLECTION, targets)
             print("done")
 
 
