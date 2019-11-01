@@ -60,13 +60,15 @@ def run(command: SystemCommand):
                 target_list[len(target_list)-1]['details']['hop_distance'] = hop_number
 
             elif 'MAC Address' in line:
-                split_line = line.split(' ')
-                mac_addr = split_line[1]
-                target_list[len(target_list)-1]['details']['mac_address'] = mac_addr
-                if len(split_line) > 2:
-                    vendor = split_line[2]
+                try:
+                    split_line = line.split(':', 1)
+                    address_and_vendor = split_line[1].strip()
+                    split_addr_and_vendor = address_and_vendor.split(' ', 1)
+                    mac_addr = split_addr_and_vendor[0]
+                    vendor = split_addr_and_vendor[1][1:-1]
+                    target_list[len(target_list)-1]['details']['mac_address'] = mac_addr
                     target_list[len(target_list)-1]['details']['mac_address_vendor'] = vendor
-                else:
+                except IndexError:
                     continue
 
             elif 'Nmap done' in line:
