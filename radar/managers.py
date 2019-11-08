@@ -86,7 +86,7 @@ class PlaybookManager:
         self.rule_path = client_config['rules']['playbook_rules']
         self.rules = yara.compile(self.rule_path)
 
-    def automate(self, target_list: list, skip_list=[]):
+    def automate(self, target_list: list, skip_list=[], silent=False):
         new_skip_list = skip_list
         for target in target_list:
             if not isinstance(target, dict):
@@ -106,9 +106,11 @@ class PlaybookManager:
                         print(f'!!!  No playbook specified for playbook rule {match.get("rule")}')
                     elif module_to_load not in skip_list:
                         playbook_module = importlib.import_module(f'radar.playbooks.{module_to_load}')
-                        playbook_module.run(target)
+                        results = playbook_module.run(target)
+                        if results and not silent:
+                            print(results)
                         new_skip_list.append(module_to_load)  # Don't rerun the same Playbook, prevent infinite loop
-                        self.automate(target_list, skip_list=new_skip_list)  # Recursive
+                        self.automate(target_list, skip_list=new_skip_list, silent=silent)  # Recursive
                         return  # Ensure only 1 module is executed per iteration of this method
                 except ModuleNotFoundError as mnfe:
                     print(f'!!!  Missing referenced Playbook: {mnfe}')

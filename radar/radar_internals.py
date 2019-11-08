@@ -37,6 +37,7 @@ def run_radar_command(command: str, server_connection: ServerConnection):
         print("""
 RADAR COMMANDS:
 server                                      (print the address you're connected to)
+distribute <command>                        (sends the command to the server to be run on any connected client - RCE)
 playbook <playbook_name> <target> (args)    (manually run a playbook on the target. args are added to the target dict)
 mission_info                                (print info about the current mission)
 mission_list                                (list all missions that contain data)
@@ -69,6 +70,12 @@ remove_auth <username>                      (remove authorization from client gi
             target_host = playbook_args[1]
             args = playbook_args[2:]
             run_playbook(playbook_name, target_host, args)
+
+    elif radar_command == "distribute":
+        if len(radar_command_arguments) == 0:
+            print("!!!  No command given to distribute")
+            return
+        server_connection.send_distributed_command(radar_command_arguments)  # TODO parse this instead of sending raw
 
     elif radar_command == 'mission_info':
         print(f"$$$  You're currently joined to: {server_connection.mission}")

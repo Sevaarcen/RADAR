@@ -19,13 +19,14 @@ from ftplib import FTP
 def run(target: dict):
     target_host = target.get('target_host', None)
     if not target_host:
-        print(f'!!!  FTP directory listing failed, no target_host specified: {target}')
-        return
+        return f'!!!  FTP directory listing failed, no target_host specified: {target}'
     ftp_connection = FTP(target_host)
     ftp_connection.login()
     files = ftp_connection.nlst()
-    print(f'$$$  These files/directories were on the anonymous FTP server: {files}')
+
     # Add info to metadata
     if not target.get('details', None):
         target['details'] = {}
     target['details']['ftp_server_contents'] = files
+    return f'$$$  These files/directories were on the anonymous FTP server: {files}'
+

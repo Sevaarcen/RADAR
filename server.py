@@ -31,20 +31,13 @@ import time
 
 # Hook the server into Flask
 app = Flask(__name__)
+
+# Global variables
+database_client = None
 config_filepath = "server_config.toml"
+distributed_command_queue = []
 stdout = None
 stderr = None
-
-# Database variables
-database_client = None
-PROTECTED_DATABASES = [  # Databases which the API shouldn't access
-    'admin',
-    'config',
-    'local'
-]
-RESTRICTED_DATABASES = [  # Databases which should only be accessed by superusers
-    'radar-control'
-]
 
 
 # Print site map / API reference on the index
@@ -122,11 +115,11 @@ def database_list_data(db_name, collection_name):
     """
     stdout.write(f'###  Viewing data from {db_name}.{collection_name}\n')
     stdout.flush()
-    for protected in PROTECTED_DATABASES:
+    for protected in const.PROTECTED_DATABASES:
         if db_name == protected:
             return "DB is protected and can't be accessed by the API", 403
     # Ensure user has access
-    for restricted in RESTRICTED_DATABASES:
+    for restricted in const.RESTRICTED_DATABASES:
         if restricted == db_name and not is_authorized(superuser_permissions=True):
             return "DB is restricted and you don't have correct access", 401
     global database_client
@@ -150,11 +143,11 @@ def database_insert_data(db_name, collection_name):
     # Ensure database is not protected
     if not is_authorized():
         return 'Unauthorized user', 401
-    for protected in PROTECTED_DATABASES:
+    for protected in const.PROTECTED_DATABASES:
         if db_name == protected:
             return 'Cannot access DB via API', 403
     # Ensure user has access
-    for restricted in RESTRICTED_DATABASES:
+    for restricted in const.RESTRICTED_DATABASES:
         if restricted == db_name and not is_authorized(superuser_permissions=True):
             return 'DB restricted to superusers', 401
     encoded_data = request.get_data()
@@ -178,7 +171,7 @@ def database_insert_data(db_name, collection_name):
                     return "If it's a list data must exclusively contain JSON", 400
                 item.update({'inserted_at': time.time()})
                 collection.insert_one(item)
-    except (binascii.Error, json.decoder.JSONDecodeError) as err:
+    except (TypeError, binascii.Error, json.decoder.JSONDecodeError):
         return "Invalid data, it must be base 64 encoded json", 400
 
     return 'Inserted data successfully', 200
@@ -255,13 +248,37 @@ def deauthorize_client():
         return 'You must be a superuser', 401
 
 
+@app.route('/distributed/get', methods=['GET'])
+def pop_distributed_command():
+    if not is_authorized():
+        return 'You are not authorized', 401
+    global distributed_command_queue
+    if len(distributed_command_queue) == 0:
+        return "Nothing in queue", 304
+    else:
+        return str(distributed_command_queue.pop()), 200
+
+
+@app.route('/distributed/add', methods=['POST'])
+def add_distributed_command():
+    if not is_authorized(superuser_permissions=True):
+        return 'You must be a superuser', 401
+    encoded_data = request.get_data()
+    try:
+        command = base64.b64decode(encoded_data).decode()
+    except (TypeError, binascii.Error):
+        return 'Malformed data', 400
+    global distributed_command_queue
+    distributed_command_queue.append(command)
+    return 'Added command to queue', 200
+
+
 def is_authorized(superuser_permissions=False):
     """ This internal method is used to verify the client is authorized.
     :param superuser_permissions: This will cause the method to only be true if the client is an authorized superuser.
     :return: True when the user is authorized, False otherwise
     """
     from_address = request.remote_addr
-    stdout.write(f'###  Checking authorizing from {from_address}\n')
     if from_address == '127.0.0.1':
         stdout.write('###  Authorization skipped, permission automatically granted for localhost')
         stdout.flush()

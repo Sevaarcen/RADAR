@@ -273,3 +273,26 @@ class ServerConnection:
         else:
             response = request.json()
             return response
+
+    def send_distributed_command(self, command):
+        full_url = f'{self.server_url}/distributed/add'
+        encoded_command = base64.b64encode(command.encode('utf-8'))
+        request = requests.post(full_url, encoded_command)
+        if request.status_code != 200:
+            print(f"!!!  HTTP Code: {request.status_code}")
+            response = request.text
+            print(response)
+        else:
+            print("###  Command added to queue")
+
+    def get_distributed_command(self):
+        full_url = f'{self.server_url}/distributed/get'
+        request = requests.get(full_url)
+        if request.status_code == 200:
+            return request.text
+        elif request.status_code == 304:
+            return None
+        else:
+            print(f"!!!  Error while getting distributed command - HTTP Code: {request.status_code}")
+            response = request.text
+            print(response)

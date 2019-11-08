@@ -26,6 +26,8 @@ import radar.radar_internals as internals
 from radar.managers import *
 from radar.objects import ServerConnection
 from radar.client_configuration_manager import *
+from radar.distributed import DistributedWatcher
+
 
 INTERCEPT_COMMANDS = [
     "exit",
@@ -119,6 +121,10 @@ def startup():
     print()
     join_mission_name = input("Which mission name do you want to join/create?: ")
     internals.run_radar_command(f'radar mission_join {join_mission_name.strip()}', server_connection)
+
+    # Create distributed command watcher to execute commands in the background
+    watcher = DistributedWatcher(server_connection)
+    watcher.start()
 
 
 def process_intercepted_command(command):

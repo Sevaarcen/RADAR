@@ -19,16 +19,17 @@ from ftplib import FTP, error_perm
 def run(target: dict):
     target_host = target.get('target_host', None)
     if not target_host:
-        print(f'!!!  Scan Anonymous FTP failed, no target_host specified: {target}')
-        return
+        return f'!!!  Scan Anonymous FTP failed, no target_host specified: {target}'
     try:
         ftp_connection = FTP(target_host)
         ftp_connection.login()  # Login anonymous
-        print(f'$$$  {target_host} is vulnerable to Anonymous FTP Login')
+
         target_vulns = target.get('vulnerabilities', None)
         if target_vulns:
             target_vulns.append('Anonymous FTP Login')
         else:
             target['vulnerabilities'] = ['Anonymous FTP Login']
+
+        return f'$$$  {target_host} is vulnerable to Anonymous FTP Login'
     except (ConnectionRefusedError, error_perm):
         return
