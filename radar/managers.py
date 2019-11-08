@@ -13,10 +13,10 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
-import toml
 import yara
 import importlib
 from radar.objects import SystemCommand
+from radar.client_configuration_manager import ClientConfigurationManager
 
 
 class CommandParserManager:
@@ -116,33 +116,3 @@ class PlaybookManager:
                     print(f'!!!  Malformed Playbook, missing required attribute: {ae}')
                 except TypeError as te:
                     print(f'!!!  Malformed Playbook, the run method must take in the target as a dict: {te}')
-
-
-def verify_config(config: dict) -> bool:
-    critical_error = False
-    # TODO Finish this
-    return not critical_error
-
-
-class ClientConfigurationManager:
-    class __ClientConfigurationManager:
-        def __init__(self, config_path):
-            self.config_path = config_path
-            try:
-                self.config = toml.load(self.config_path)
-            except FileNotFoundError:
-                print(f"!!!  Could not find configuration file: {config_path}")
-                exit(1)
-
-    instance = None
-
-    def __new__(cls, config_path="client_config.toml"):
-        if not ClientConfigurationManager.instance:
-            ClientConfigurationManager.instance = ClientConfigurationManager.__ClientConfigurationManager(config_path)
-        return ClientConfigurationManager.instance
-
-    def __getattr__(self, item):
-        return getattr(self.instance, item)
-
-    def __setattr__(self, key, value):
-        return setattr(self.instance, key, value)

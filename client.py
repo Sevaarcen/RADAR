@@ -14,16 +14,18 @@
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
+import argparse
 import os
 import sys
 import time
-import argparse
 from multiprocessing import Process
-import radar.radar_internals as internals
-import radar.constants as const
-from radar.objects import SystemCommand, ServerConnection
-from radar.managers import *
 
+import server
+import radar.constants as const
+import radar.radar_internals as internals
+from radar.managers import *
+from radar.objects import ServerConnection
+from radar.client_configuration_manager import *
 
 INTERCEPT_COMMANDS = [
     "exit",
@@ -152,9 +154,7 @@ def start_local_server():
     The server will save it's output in the 'server.log' file.
     :return: None
     """
-    print("###  Starting local RADAR Control Server...")
     log_file = open('server.log', 'w')
-    import server
     server.start(use_stdout=log_file, use_stderr=log_file)
 
 
@@ -207,12 +207,13 @@ def main():
     """
     # Handle client arguments
     parser = argparse.ArgumentParser()
-    server_arg_group = parser.add_mutually_exclusive_group(required=False)
+    server_arg_group = parser.add_mutually_exclusive_group()
     server_arg_group.add_argument('--start-local',
-                                  dest='start_local_server',
+                                  dest='start_local',
                                   action="store_true",
                                   help="Start a local instance of the RADAR Control Server and run on localhost")
-    server_arg_group.add_argument('-s', '--server',
+    server_arg_group.add_argument('-s',
+                                  '--server',
                                   dest='server',
                                   type=str,
                                   help="Connect to a running RADAR Control Server (hostname or IP)")
@@ -233,31 +234,38 @@ def main():
                         help="Specify a certificate that can be used to verify self-signed SSL certificates")
 
     arguments = parser.parse_args()
-
-    # Process request to start local server
-    if arguments.start_local_server:
-        arguments.server = 'localhost'
-        global server_process
-        server_process = Process(target=start_local_server, daemon=True)
-        server_process.start()
-        time.sleep(1)
+    global client_config
 
     # Load config file
     config_path = arguments.config_path
     try:
-        global client_config
-        client_config = toml.load(config_path)
+        client_config_manager = ClientConfigurationManager(config_path=config_path)
+        client_config = client_config_manager.config
     except FileNotFoundError:
         print(f"!!!  CRITICAL: Could not find configuration file: {config_path}")
         exit(1)
 
-    # Merge with arguments
-    client_config_manager = ClientConfigurationManager(config_path=config_path)
-    client_config = client_config_manager.config
+    # Process request to start local server
+    if arguments.start_local:
+        arguments.server = 'localhost'
 
+        print("###  Conducting RADAR Control Server dry run...")
+        dry_run_log_file = open('server_dry_run.log', 'w')
+        dry_run_results = server.start(use_stdout=dry_run_log_file, use_stderr=dry_run_log_file, dry_run=True)
+        if "HTTP = SUCCESS" in dry_run_results:
+            print("#!#  Due to some error, the local server will use HTTP instead of HTTPS")
+            print("     --- Check server_dry_run.log for more info")
+            client_config.setdefault('server', {})['attempt-https'] = False
+
+        print("###  Starting local RADAR Control Server...")
+        global server_process
+        server_process = Process(target=start_local_server, daemon=True)
+        server_process.start()
+        time.sleep(2)
+
+    # Merge with arguments
     if arguments.server:
         client_config.setdefault("server", {})["host"] = arguments.server
-
     if arguments.port:
         client_config.setdefault("server", {})['port'] = arguments.port
 

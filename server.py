@@ -13,6 +13,8 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
+import os
+
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
@@ -29,6 +31,7 @@ import time
 
 # Hook the server into Flask
 app = Flask(__name__)
+config_filepath = "server_config.toml"
 stdout = None
 stderr = None
 
@@ -118,6 +121,7 @@ def database_list_data(db_name, collection_name):
     :return: A tuple containg the JSON response and HTTP status code
     """
     stdout.write(f'###  Viewing data from {db_name}.{collection_name}\n')
+    stdout.flush()
     for protected in PROTECTED_DATABASES:
         if db_name == protected:
             return "DB is protected and can't be accessed by the API", 403
@@ -142,6 +146,7 @@ def database_insert_data(db_name, collection_name):
     :return: A tuple containg a plain-text response and HTTP status code
     """
     stdout.write(f'###  Database inserting data at {db_name}.{collection_name}\n')
+    stdout.flush()
     # Ensure database is not protected
     if not is_authorized():
         return 'Unauthorized user', 401
@@ -259,6 +264,7 @@ def is_authorized(superuser_permissions=False):
     stdout.write(f'###  Checking authorizing from {from_address}\n')
     if from_address == '127.0.0.1':
         stdout.write('###  Authorization skipped, permission automatically granted for localhost')
+        stdout.flush()
         return True
     # Grab registered client info from database
     global database_client
@@ -293,60 +299,73 @@ def verify_config(config: dict) -> bool:
     web_server = config.get('web_server', None)
     if not web_server:
         stderr.write("!!!  Server config missing 'web_server' section\n")
+        stderr.flush()
         critical_error = True
     else:
         listen_address = web_server.get('listen_address', None)
         if not listen_address:
             stderr.write("!!!  Server config missing 'listen_address' in 'web_server' section, assuming default\n")
+            stderr.flush()
         port = web_server.get('port', None)
         if not port:
             stderr.write("!!!  Server config missing 'port' in 'web_server' section, assuming default\n")
+            stderr.flush()
 
     # Verify certificates section (optional)
     certificates = config.get('certificates', None)
     if not certificates:
         stderr.write("!!!  Server config missing 'certificates' section, it will run an insecure HTTP API instead\n")
+        stderr.flush()
     else:
         private_key = certificates.get("private_key", None)
         if not private_key:
             stderr.write("!!!  Server config missing 'private_key' in 'certificates' section\n")
+            stderr.flush()
             critical_error = True
         public_key = certificates.get("public_key", None)
         if not public_key:
             stderr.write("!!!  Server config missing 'public_key' in 'certificates' section\n")
+            stderr.flush()
             critical_error = True
 
     # Verify database section
     database = config.get('database', None)
     if not database:
         stderr.write("!!!  Server config missing 'database' section\n")
+        stderr.flush()
         critical_error = True
     else:
         database_host = database.get('host', None)
         if not database_host:
             stderr.write("!!!  Server config missing 'host' in 'database' section\n")
+            stderr.flush()
             critical_error = True
         database_port = database.get('port', None)
         if not database_port:
             stderr.write("!!!  Server config missing 'port' in 'database' section, assuming default port\n")
+            stderr.flush()
         database_username = database.get('username', None)
         if not database_username:
             stderr.write("!!!  Server config missing 'username' in 'database' section, assuming no credentials\n")
+            stderr.flush()
         database_password = database.get('password', None)
         if not database_password:
             stderr.write("!!!  Server config missing 'password' in 'database' section, assuming no credentials\n")
+            stderr.flush()
         database_timeout = database.get('timeout', None)
         if not database_timeout:
             stderr.write("!!!  Server config missing 'timeout' in 'database' section, assuming default\n")
+            stderr.flush()
 
     return not critical_error
 
 
-def start(use_stdout=sys.stdout, use_stderr=sys.stderr):
+def start(use_stdout=sys.stdout, use_stderr=sys.stderr, dry_run=False):
     """ This internal method is used to start the Flask web server and connect to the backend Mongo database.
     :param use_stdout: A stream to use for stdout instead of sys.stdout
     :param use_stderr: A stream to use for stderr instead of sys.stderr
-    :return: None
+    :param dry_run: True if the server shouldn't actually be started
+    :return: None if dry_run is False, otherwise return a str with the results of the dry run
     """
     # Send output to specified place
     global stdout
@@ -358,26 +377,17 @@ def start(use_stdout=sys.stdout, use_stderr=sys.stderr):
     stdout_handler = logging.StreamHandler(stdout)
     flask_logger.addHandler(stdout_handler)
 
-    # Handle server arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c',
-                        '--config',
-                        dest='config_path',
-                        type=str,
-                        default="server_config.toml",
-                        help="Specify non-default configuration file to use")
-    arguments = parser.parse_args()
-
-    # Load configuration file
-    config_path = arguments.config_path
+    global config_filepath
     try:
-        server_config = toml.load(config_path)
+        server_config = toml.load(config_filepath)
     except FileNotFoundError:
-        stderr.write(f"!!!  Could not find configuration file {config_path}, server will shut down\n")
+        stderr.write(f"!!!  Could not find configuration file {config_filepath}, server will shut down\n")
+        stderr.flush()
         exit(2)
 
     if not verify_config(server_config):
         stderr.write("!!!  Invalid configuration file, server shutting down\n")
+        stderr.flush()
         exit(3)
 
     # Connect to database
@@ -394,10 +404,12 @@ def start(use_stdout=sys.stdout, use_stderr=sys.stderr):
     database_client = MongoClient(mongo_database_url, serverSelectionTimeoutMS=db_timeout)
     try:
         database_client.server_info()
-        stdout.write(f"$$$  Connected to backend MongoDB with URL {mongo_database_url}\n")
+        stdout.write(f"$$$  Connected to backend Mongo database\n")
+        stdout.flush()
     except ServerSelectionTimeoutError as error:
         stderr.write(f"!!!  Stopping server, could not connect to MongoDB with URL {mongo_database_url}\n")
         stderr.write(str(error) + "\n")
+        stderr.flush()
         exit(1)
 
     # Grab web server information
@@ -410,15 +422,45 @@ def start(use_stdout=sys.stdout, use_stderr=sys.stderr):
 
     # And start server
     if public_key_file and private_key_file:
+        stdout.write("###  Starting HTTPS RADAR Control Server\n")
+        stdout.flush()
         context = (public_key_file, private_key_file)
-        try:
-            app.run(host=listen_address, port=listen_port, ssl_context=context)
-        except FileNotFoundError:
-            stderr.write("!!!  Certificate and/or key file could not be found! Starting server w/ HTTP instead")
-            app.run(host=listen_address, port=listen_port)
+        if os.path.exists(public_key_file) and os.path.exists(private_key_file):
+            if not dry_run:
+                app.run(host=listen_address, port=listen_port, ssl_context=context)
+            else:
+                stdout.write("DRY RUN COMPLETE\n")
+                stdout.flush()
+                return "HTTPS = SUCCESS"
+        else:
+            stderr.write("!!!  Certificate and/or key file could not be found! Starting server w/ HTTP instead\n")
+            stderr.flush()
+            if not dry_run:
+                app.run(host=listen_address, port=listen_port)
+            else:
+                stdout.write("DRY RUN COMPLETE\n")
+                stdout.flush()
+                return "HTTPS = FAIL, HTTP = SUCCESS"
     else:
-        app.run(host=listen_address, port=listen_port)
+        if not dry_run:
+            app.run(host=listen_address, port=listen_port)
+        else:
+            stdout.write("DRY RUN COMPLETE\n")
+            stdout.flush()
+            return "HTTP = SUCCESS"
 
 
 if __name__ == '__main__':
+    # Parse arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c',
+                        '--config',
+                        dest='config_path',
+                        type=str,
+                        default="server_config.toml",
+                        help="Specify non-default configuration file to use")
+    arguments = parser.parse_args()
+
+    config_filepath = arguments.config_path  # Override if manually specified
+
     start()

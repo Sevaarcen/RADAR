@@ -24,7 +24,7 @@ import warnings
 import time
 from requests.exceptions import ConnectionError, SSLError
 import radar.constants as const
-from radar.managers import ClientConfigurationManager
+from radar.client_configuration_manager import ClientConfigurationManager
 
 
 class SystemCommand:
@@ -64,7 +64,7 @@ class ServerConnection:
         client_config_manager = ClientConfigurationManager()
         client_config = client_config_manager.config
         self._hostname = client_config['server']['host']
-        self._port = client_config['server']['port']
+        self._port = client_config['server'].setdefault('port', 1794)
         self.server_url = f'https://{self._hostname}:{self._port}'
 
         self._verify_host = client_config['server'].setdefault('verify-host', True)
@@ -78,10 +78,29 @@ class ServerConnection:
     def __str__(self):
         return self.server_url
 
+    def __try_http_instead_prompt(self):
+        try_http = input('Do you want to try using HTTP instead '
+                         '(data will be visible as plain-text) [y/N]?: ')
+        try:
+            if try_http.lower()[0] == 'y':
+                print('###  Attempting HTTP connection instead')
+                self.server_url = f'http://{self._hostname}:{self._port}'
+                http_server_online = self.attempt_to_connect(max_attempts=5)
+                if http_server_online:
+                    print("$$$ Connected to the RADAR control server")
+                else:
+                    print('$$$  All connection attempts failed, shutting down...')
+                    sys.exit(3)
+            else:
+                print('###  The server is untrusted. Please correct the error and restart the client')
+                sys.exit(3)
+        except IndexError:
+            print('!!!  All connection attempts failed, shutting down...')
+
     def open_connection(self):
         client_config_manager = ClientConfigurationManager()
         client_config = client_config_manager.config
-        attempt_https = client_config.get('server').get('attempt-https', True)
+        attempt_https = client_config.get('server').setdefault('attempt-https', True)
         force_https = client_config['server'].setdefault('force-https', False)
         if not attempt_https:
             self.server_url = f'http://{self._hostname}:{self._port}'
@@ -96,25 +115,7 @@ class ServerConnection:
                     if force_https:
                         print("!!!  HTTPS is forced so the client must shut down")
                         sys.exit(3)
-
-                    try_http = input('Do you want to try using HTTP instead '
-                                     '(data will be visible as plain-text) [y/N]?: ')
-                    try:
-                        if try_http.lower()[0] == 'y':
-                            print('###  Attempting HTTP connection instead')
-                            self.server_url = f'http://{self._hostname}:{self._port}'
-                            http_server_online = self.attempt_to_connect(max_attempts=5)
-                            if http_server_online:
-                                print("$$$ Connected to the RADAR control server")
-                            else:
-                                print('$$$  All connection attempts failed, shutting down...')
-                                sys.exit(3)
-                        else:
-                            print('###  The server is untrusted. Please correct the error and restart the client')
-                            sys.exit(3)
-                    except IndexError:
-                        print('!!!  All connection attempts failed, shutting down...')
-                        sys.exit(3)
+                    self.__try_http_instead_prompt()
             except SSLError as ssl_error:
                 print("!!! The connection encountered an SSL error")
                 print(ssl_error)
