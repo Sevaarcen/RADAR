@@ -1,0 +1,12 @@
+[server]
+host = "localhost"
+port = 1794
+attempt-https = true
+#force-https = true
+CA-certificate = "rootCA.pem"
+verify-host = true
+
+
+[rules]
+parser_rules = "parsing_rules.yara"
+playbook_rules = "playbook_rules.yara"

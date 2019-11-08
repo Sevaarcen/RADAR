@@ -18,6 +18,8 @@ from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 import radar.constants as const
 import bson.json_util
+import argparse
+import toml
 import json
 import base64
 import binascii
@@ -25,24 +27,10 @@ import sys
 import logging
 import time
 
-
 # Hook the server into Flask
 app = Flask(__name__)
 stdout = None
 stderr = None
-
-# Default RADAR Control Server configuration
-DEFAULT_CONFIG = {
-    'host': '0.0.0.0',
-    'port': 1794,
-    'database_address': 'localhost',
-    'database_port': 27017,
-    'database_username': 'root',
-    'database_password': 'R4d4rD4t4b4s3',
-    'key_file': 'server.key',
-    'cert_file': 'server.crt',
-    'database_timeout': 2000
-}
 
 # Database variables
 database_client = None
@@ -113,8 +101,8 @@ def get_mission_list():
     global database_client
     result = ""
     for database_name in database_client.database_names():
-        if 'mission-' in database_name:
-            result += database_name[len('mission-'):] + ","
+        if const.MISSION_PREFIX in database_name:
+            result += database_name[len(const.MISSION_PREFIX):] + ","
     result = result[0:-1]  # Remove the trailing ','
     return result
 
@@ -298,6 +286,62 @@ def number_of_clients():
     return len(query_result)
 
 
+def verify_config(config: dict) -> bool:
+    global stderr
+    critical_error = False
+    # Verify web_server section (required)
+    web_server = config.get('web_server', None)
+    if not web_server:
+        stderr.write("!!!  Server config missing 'web_server' section\n")
+        critical_error = True
+    else:
+        listen_address = web_server.get('listen_address', None)
+        if not listen_address:
+            stderr.write("!!!  Server config missing 'listen_address' in 'web_server' section, assuming default\n")
+        port = web_server.get('port', None)
+        if not port:
+            stderr.write("!!!  Server config missing 'port' in 'web_server' section, assuming default\n")
+
+    # Verify certificates section (optional)
+    certificates = config.get('certificates', None)
+    if not certificates:
+        stderr.write("!!!  Server config missing 'certificates' section, it will run an insecure HTTP API instead\n")
+    else:
+        private_key = certificates.get("private_key", None)
+        if not private_key:
+            stderr.write("!!!  Server config missing 'private_key' in 'certificates' section\n")
+            critical_error = True
+        public_key = certificates.get("public_key", None)
+        if not public_key:
+            stderr.write("!!!  Server config missing 'public_key' in 'certificates' section\n")
+            critical_error = True
+
+    # Verify database section
+    database = config.get('database', None)
+    if not database:
+        stderr.write("!!!  Server config missing 'database' section\n")
+        critical_error = True
+    else:
+        database_host = database.get('host', None)
+        if not database_host:
+            stderr.write("!!!  Server config missing 'host' in 'database' section\n")
+            critical_error = True
+        database_port = database.get('port', None)
+        if not database_port:
+            stderr.write("!!!  Server config missing 'port' in 'database' section, assuming default port\n")
+        database_username = database.get('username', None)
+        if not database_username:
+            stderr.write("!!!  Server config missing 'username' in 'database' section, assuming no credentials\n")
+        database_password = database.get('password', None)
+        if not database_password:
+            stderr.write("!!!  Server config missing 'password' in 'database' section, assuming no credentials\n")
+        database_timeout = database.get('timeout', None)
+        if not database_timeout:
+            stderr.write("!!!  Server config missing 'timeout' in 'database' section, assuming default\n")
+
+    return not critical_error
+
+
 def start(use_stdout=sys.stdout, use_stderr=sys.stderr):
     """ This internal method is used to start the Flask web server and connect to the backend Mongo database.
     :param use_stdout: A stream to use for stdout instead of sys.stdout
@@ -314,14 +358,40 @@ def start(use_stdout=sys.stdout, use_stderr=sys.stderr):
     stdout_handler = logging.StreamHandler(stdout)
     flask_logger.addHandler(stdout_handler)
 
+    # Handle server arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c',
+                        '--config',
+                        dest='config_path',
+                        type=str,
+                        default="server_config.toml",
+                        help="Specify non-default configuration file to use")
+    arguments = parser.parse_args()
+
+    # Load configuration file
+    config_path = arguments.config_path
+    try:
+        server_config = toml.load(config_path)
+    except FileNotFoundError:
+        stderr.write(f"!!!  Could not find configuration file {config_path}, server will shut down\n")
+        exit(2)
+
+    if not verify_config(server_config):
+        stderr.write("!!!  Invalid configuration file, server shutting down\n")
+        exit(3)
+
     # Connect to database
     global database_client
-    db_user = DEFAULT_CONFIG['database_username']
-    db_password = DEFAULT_CONFIG['database_password']
-    db_host = DEFAULT_CONFIG['database_address']
-    db_port = DEFAULT_CONFIG['database_port']
-    mongo_database_url = f"mongodb://{db_user}:{db_password}@{db_host}:{db_port}"
-    database_client = MongoClient(mongo_database_url, serverSelectionTimeoutMS=DEFAULT_CONFIG['database_timeout'])
+    db_host = server_config['database']['host']
+    db_port = server_config['database'].get('port', 27017)
+    db_user = server_config['database'].get('username', None)
+    db_password = server_config['database'].get('password', None)
+    db_timeout = server_config['database'].get('timeout', 2000)
+    if db_user and db_password:
+        mongo_database_url = f"mongodb://{db_user}:{db_password}@{db_host}:{db_port}"
+    else:
+        mongo_database_url = f"mongodb://{db_host}:{db_port}"
+    database_client = MongoClient(mongo_database_url, serverSelectionTimeoutMS=db_timeout)
     try:
         database_client.server_info()
         stdout.write(f"$$$  Connected to backend MongoDB with URL {mongo_database_url}\n")
@@ -330,15 +400,24 @@ def start(use_stdout=sys.stdout, use_stderr=sys.stderr):
         stderr.write(str(error) + "\n")
         exit(1)
 
-    # Start Flask API server
-    public_key_file = DEFAULT_CONFIG.get('cert_file', None)
-    private_key_file = DEFAULT_CONFIG.get('key_file', None)
-    context = (public_key_file, private_key_file)
-    try:
-        app.run(host=DEFAULT_CONFIG['host'], port=DEFAULT_CONFIG['port'], ssl_context=context)
-    except FileNotFoundError:
-        stderr.write("!!!  Certificate and/or key file could not be found! Starting server w/ HTTP instead")
-        app.run(host=DEFAULT_CONFIG['host'], port=DEFAULT_CONFIG['port'])
+    # Grab web server information
+    listen_address = server_config['web_server'].get('listen_address', "0.0.0.0")
+    listen_port = server_config['web_server'].get('port', 1794)
+
+    # Grab certificate info if available
+    public_key_file = server_config.get('certificates', {}).get('public_key', None)
+    private_key_file = server_config.get('certificates', {}).get('private_key', None)
+
+    # And start server
+    if public_key_file and private_key_file:
+        context = (public_key_file, private_key_file)
+        try:
+            app.run(host=listen_address, port=listen_port, ssl_context=context)
+        except FileNotFoundError:
+            stderr.write("!!!  Certificate and/or key file could not be found! Starting server w/ HTTP instead")
+            app.run(host=listen_address, port=listen_port)
+    else:
+        app.run(host=listen_address, port=listen_port)
 
 
 if __name__ == '__main__':

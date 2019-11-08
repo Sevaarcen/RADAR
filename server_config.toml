@@ -1,0 +1,14 @@
+[web_server]
+listen_address = "0.0.0.0"
+port = 1794
+
+[certificates]
+public_key = "server.key"
+private_key = "server.crt"
+
+[database]
+host = "localhost"
+port = 27017
+username = "root"
+password = "R4d4rD4t4b4s3"
+timeout = 2000

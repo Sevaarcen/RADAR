@@ -13,20 +13,18 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
+import toml
 import yara
 import importlib
 from radar.objects import SystemCommand
-
-DEFAULT_CONFIG = {
-    "parser_rules": "parsing_rules.yara",
-    "playbook_rules": "playbook_rules.yara"
-}
 
 
 class CommandParserManager:
 
     def __init__(self):
-        self.rule_path = DEFAULT_CONFIG['parser_rules']
+        client_config_manager = ClientConfigurationManager()
+        client_config = client_config_manager.config
+        self.rule_path = client_config['rules']['parser_rules']
         self.rules = yara.compile(self.rule_path)
 
     def parse(self, command: SystemCommand):
@@ -83,7 +81,9 @@ def _flatten_to_string(to_flatten):
 class PlaybookManager:
 
     def __init__(self):
-        self.rule_path = DEFAULT_CONFIG['playbook_rules']
+        client_config_manager = ClientConfigurationManager()
+        client_config = client_config_manager.config
+        self.rule_path = client_config['rules']['playbook_rules']
         self.rules = yara.compile(self.rule_path)
 
     def automate(self, target_list: list, skip_list=[]):
@@ -116,3 +116,33 @@ class PlaybookManager:
                     print(f'!!!  Malformed Playbook, missing required attribute: {ae}')
                 except TypeError as te:
                     print(f'!!!  Malformed Playbook, the run method must take in the target as a dict: {te}')
+
+
+def verify_config(config: dict) -> bool:
+    critical_error = False
+    # TODO Finish this
+    return not critical_error
+
+
+class ClientConfigurationManager:
+    class __ClientConfigurationManager:
+        def __init__(self, config_path):
+            self.config_path = config_path
+            try:
+                self.config = toml.load(self.config_path)
+            except FileNotFoundError:
+                print(f"!!!  Could not find configuration file: {config_path}")
+                exit(1)
+
+    instance = None
+
+    def __new__(cls, config_path="client_config.toml"):
+        if not ClientConfigurationManager.instance:
+            ClientConfigurationManager.instance = ClientConfigurationManager.__ClientConfigurationManager(config_path)
+        return ClientConfigurationManager.instance
+
+    def __getattr__(self, item):
+        return getattr(self.instance, item)
+
+    def __setattr__(self, key, value):
+        return setattr(self.instance, key, value)

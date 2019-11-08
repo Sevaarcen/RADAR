@@ -1,3 +1,4 @@
+toml
 yara
 bson==0.5.8
 certifi==2019.9.11

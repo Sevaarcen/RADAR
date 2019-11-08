@@ -24,6 +24,7 @@ import warnings
 import time
 from requests.exceptions import ConnectionError, SSLError
 import radar.constants as const
+from radar.managers import ClientConfigurationManager
 
 
 class SystemCommand:
@@ -59,11 +60,14 @@ class SystemCommand:
 
 class ServerConnection:
 
-    def __init__(self, hostname: str, port=1794):
-        self.server_url = f'https://{hostname}:{port}'
-        self._hostname = hostname
-        self._port = port
-        self._verify_host = True
+    def __init__(self):
+        client_config_manager = ClientConfigurationManager()
+        client_config = client_config_manager.config
+        self._hostname = client_config['server']['host']
+        self._port = client_config['server']['port']
+        self.server_url = f'https://{self._hostname}:{self._port}'
+
+        self._verify_host = client_config['server'].setdefault('verify-host', True)
         self.username = getpass.getuser()
         self.is_authorized = None
         self.is_superuser = None
@@ -74,24 +78,32 @@ class ServerConnection:
     def __str__(self):
         return self.server_url
 
-    def open_connection(self, attempt_https=True):
+    def open_connection(self):
+        client_config_manager = ClientConfigurationManager()
+        client_config = client_config_manager.config
+        attempt_https = client_config.get('server').get('attempt-https', True)
+        force_https = client_config['server'].setdefault('force-https', False)
         if not attempt_https:
             self.server_url = f'http://{self._hostname}:{self._port}'
         print(f'###  Attempting to verify connection to {self.server_url}')
         try:
             try:
-                server_online = self.attempt_to_connect(5)
+                server_online = self.attempt_to_connect(max_attempts=5)
                 if server_online:
                     print("$$$  Connected to the RADAR control server")
                 elif attempt_https:
                     print("!!!  An HTTPs connection could not be established")
+                    if force_https:
+                        print("!!!  HTTPS is forced so the client must shut down")
+                        sys.exit(3)
+
                     try_http = input('Do you want to try using HTTP instead '
                                      '(data will be visible as plain-text) [y/N]?: ')
                     try:
                         if try_http.lower()[0] == 'y':
                             print('###  Attempting HTTP connection instead')
                             self.server_url = f'http://{self._hostname}:{self._port}'
-                            http_server_online = self.attempt_to_connect(5)
+                            http_server_online = self.attempt_to_connect(max_attempts=5)
                             if http_server_online:
                                 print("$$$ Connected to the RADAR control server")
                             else:
@@ -99,9 +111,9 @@ class ServerConnection:
                                 sys.exit(3)
                         else:
                             print('###  The server is untrusted. Please correct the error and restart the client')
-                            self._verify_host = True
+                            sys.exit(3)
                     except IndexError:
-                        print('$$$  All connection attempts failed, shutting down...')
+                        print('!!!  All connection attempts failed, shutting down...')
                         sys.exit(3)
             except SSLError as ssl_error:
                 print("!!! The connection encountered an SSL error")
@@ -114,20 +126,17 @@ class ServerConnection:
                                                                   "Adding certificate verification is strongly advised."
                                                                   " See: https://urllib3.readthedocs.io/en/"
                                                                   "latest/advanced-usage.html#ssl-warnings")
-                        self._verify_host = False
+                        client_config['server']['verify-host'] = False
                     else:
                         print('###  The server is untrusted. Please correct the error and restart the client')
-                        self._verify_host = True
                         sys.exit(3)
                 except IndexError:
                     print('###  The server is untrusted. Please correct the error and restart the client')
-                    self._verify_host = True
                     sys.exit(3)
         except KeyboardInterrupt:
             sys.exit(1)
 
-    def attempt_to_connect(self, max_attempts):
-        max_attempts = 10
+    def attempt_to_connect(self, max_attempts=10):
         for attempt in range(1, max_attempts + 1):
             server_online = self.is_connected()
             if server_online:

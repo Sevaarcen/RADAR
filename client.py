@@ -22,7 +22,7 @@ from multiprocessing import Process
 import radar.radar_internals as internals
 import radar.constants as const
 from radar.objects import SystemCommand, ServerConnection
-from radar.managers import CommandParserManager, PlaybookManager
+from radar.managers import *
 
 
 INTERCEPT_COMMANDS = [
@@ -33,6 +33,7 @@ INTERCEPT_COMMANDS = [
 
 # Global variables
 radar_prompt = "[RADAR PROMPT GOES HERE]"
+client_config = {}
 server_process = None
 server_connection: ServerConnection = None
 
@@ -81,15 +82,15 @@ def goodbye():
     sys.exit(0)
 
 
-def startup(server_hostname: str):
+def startup():
     """ This method will verify if a RADAR control server is reachable at the specified IP address.
     This method will request authorization from the server if the client doesn't already have authorization.
     :param server_hostname: The IP address or domain-name of the RADAR Control Server
     :return: None
     """
     global server_connection
-    server_connection = ServerConnection(server_hostname)
-    server_connection.open_connection(attempt_https=True)
+    server_connection = ServerConnection()
+    server_connection.open_connection()
 
     if not server_connection.get_authorization()[0]:
         server_connection.request_authorization()
@@ -151,7 +152,7 @@ def start_local_server():
     The server will save it's output in the 'server.log' file.
     :return: None
     """
-    print("###  Starting local RADAR Control Server (http://localhost:1794)...")
+    print("###  Starting local RADAR Control Server...")
     log_file = open('server.log', 'w')
     import server
     server.start(use_stdout=log_file, use_stderr=log_file)
@@ -206,12 +207,29 @@ def main():
     """
     # Handle client arguments
     parser = argparse.ArgumentParser()
-    server_arg_group = parser.add_mutually_exclusive_group(required=True)
-    server_arg_group.add_argument('--start-local', dest='start_local_server', action="store_true",
+    server_arg_group = parser.add_mutually_exclusive_group(required=False)
+    server_arg_group.add_argument('--start-local',
+                                  dest='start_local_server',
+                                  action="store_true",
                                   help="Start a local instance of the RADAR Control Server and run on localhost")
-    server_arg_group.add_argument('-s', '--server', dest='server', type=str,
+    server_arg_group.add_argument('-s', '--server',
+                                  dest='server',
+                                  type=str,
                                   help="Connect to a running RADAR Control Server (hostname or IP)")
-    parser.add_argument('--trusted-ca', dest='trusted_certificate', type=str,
+    parser.add_argument('-p',
+                        '--port',
+                        dest='port',
+                        type=int,
+                        help="Override default port for RADAR Control Server")
+    parser.add_argument('-c',
+                        '--config',
+                        dest='config_path',
+                        type=str,
+                        default="client_config.toml",
+                        help="Specify non-default configuration file to use")
+    parser.add_argument('--trusted-ca',
+                        dest='trusted_certificate',
+                        type=str,
                         help="Specify a certificate that can be used to verify self-signed SSL certificates")
 
     arguments = parser.parse_args()
@@ -224,14 +242,42 @@ def main():
         server_process.start()
         time.sleep(1)
 
+    # Load config file
+    config_path = arguments.config_path
+    try:
+        global client_config
+        client_config = toml.load(config_path)
+    except FileNotFoundError:
+        print(f"!!!  CRITICAL: Could not find configuration file: {config_path}")
+        exit(1)
+
+    # Merge with arguments
+    client_config_manager = ClientConfigurationManager(config_path=config_path)
+    client_config = client_config_manager.config
+
+    if arguments.server:
+        client_config.setdefault("server", {})["host"] = arguments.server
+
+    if arguments.port:
+        client_config.setdefault("server", {})['port'] = arguments.port
+
     # If a trusted cert if specified, add it to the environment variables to verify HTTP requests
     if arguments.trusted_certificate:
         absolute_path = os.path.abspath(arguments.trusted_certificate)
-        os.environ['REQUESTS_CA_BUNDLE'] = absolute_path
+        client_config.setdefault("server", {})['CA-certificate'] = absolute_path
+
+    # Verify configuration plus manual options
+    if not verify_config(client_config):
+        print("!!! Invalid configuration file, missing required components")
+        exit(1)
+
+    trusted_ca_certificate = client_config.get('server').get('CA-certificate', None)
+    if trusted_ca_certificate:
+        os.environ['REQUESTS_CA_BUNDLE'] = trusted_ca_certificate
 
     # Run Commands
     greeting()
-    startup(arguments.server)
+    startup()
     client_loop()
 
 
