@@ -19,8 +19,8 @@ listen_address = "0.0.0.0"
 port = 1794
 
 [certificates]
-public_key = "server.key"
-private_key = "server.crt"
+public_key = "server.crt"
+private_key = "server.key"
 
 [database]
 host = "localhost"
