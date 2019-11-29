@@ -28,6 +28,7 @@ import binascii
 import sys
 import logging
 import time
+import secrets
 
 # Hook the server into Flask
 app = Flask(__name__)
@@ -40,7 +41,7 @@ stdout = None
 stderr = None
 
 
-# Print site map / API reference on the index
+# Send site map / low-quality API reference on the index
 @app.route('/', methods=['GET'])
 def return_api_reference():
     """ This method provides a listing of the available pages "routes" served by Flask.
@@ -59,6 +60,8 @@ def list_databases():
     """ This method will list the databases and collections contained in the MongoDB.
     :return: Tuple containing the JSON response and HTTP status code
     """
+    if not is_authorized():
+        return 'Unauthorized user', 401
     global database_client
     output = {}
     # For every database name
@@ -94,6 +97,8 @@ def get_mission_list():
     """ This method returns the mission list
     :return: A string of mission names, seperated by commas
     """
+    if not is_authorized():
+        return 'Unauthorized user', 401
     global database_client
     result = ""
     for database_name in database_client.database_names():
@@ -113,6 +118,8 @@ def database_list_data(db_name, collection_name):
     :param collection_name: Name of Collection in MongoDB
     :return: A tuple containg the JSON response and HTTP status code
     """
+    if not is_authorized():
+        return 'Unauthorized user', 401
     stdout.write(f'###  Viewing data from {db_name}.{collection_name}\n')
     stdout.flush()
     for protected in const.PROTECTED_DATABASES:
@@ -145,7 +152,7 @@ def database_insert_data(db_name, collection_name):
         return 'Unauthorized user', 401
     for protected in const.PROTECTED_DATABASES:
         if db_name == protected:
-            return 'Cannot access DB via API', 403
+            return 'Cannot access protected DB via API', 403
     # Ensure user has access
     for restricted in const.RESTRICTED_DATABASES:
         if restricted == db_name and not is_authorized(superuser_permissions=True):
@@ -171,6 +178,8 @@ def database_insert_data(db_name, collection_name):
                     return "If it's a list data must exclusively contain JSON", 400
                 item.update({'inserted_at': time.time()})
                 collection.insert_one(item)
+        else:
+            return f"Unknown type of data: {type(parsed_data)}", 400
     except (TypeError, binascii.Error, json.decoder.JSONDecodeError):
         return "Invalid data, it must be base 64 encoded json", 400
 
@@ -186,13 +195,13 @@ def request_client_authorization():
     """
     username = request.args.get('username')
     remote_host = request.remote_addr
+    friendly_user_auth_string = f'{username}@{remote_host}'
     if username and remote_host:
         global database_client
         radar_control_database = database_client['radar-control']
         client_collection = radar_control_database['clients']
         full_request = {
-            'username': username,
-            'from': remote_host,
+            'friendly_name': friendly_user_auth_string,
             'authorized': False,
             'level': 'user'
         }
@@ -200,15 +209,16 @@ def request_client_authorization():
         if number_of_clients() == 0 or remote_host == '127.0.0.1':
             full_request['level'] = 'superuser'
             full_request['authorized'] = True
-        matching_clients = client_collection.find({'username': username, 'from': remote_host})
+        matching_clients = client_collection.find({'friendly_name': friendly_user_auth_string})
         if len(list(matching_clients)) != 0:
-            return 'User has already submitted a request', 200
+            return "", 200  # Don't return API key to prevent any errors causing leaked data
         # Insert into Database
+        api_key = secrets.token_hex(16)
+        full_request['key'] = api_key
         client_collection.insert_one(full_request)
-        return f'Username "{username}", of the level {full_request["level"]} from "{remote_host}" is authorized?' \
-               f'{full_request["authorized"]}', 200
+        return api_key, 200
     else:
-        return "You must specify a username, superuser is optional", 400
+        return "You must specify a username", 400
 
 
 @app.route('/clients/authorize', methods=['GET'])
@@ -217,15 +227,15 @@ def authorize_client():
     to authorize the user as a superuser. This functionality can only be accessed by a superuser/
     :return: A tuple containing a plain-text response and HTTP status code
     """
-    username = request.args.get('username')
+    key = request.args.get('key')
     level = 'superuser' if request.args.get('superuser') == 'True' else 'user'
-    if not username:
-        return 'You must specify a username', 400
+    if not key:
+        return 'You must specify an API key to authorize', 400
     if is_authorized(superuser_permissions=True):
         global database_client
         radar_control_database = database_client['radar-control']
         client_collection = radar_control_database['clients']
-        query = {'authorized': False, 'username': username}
+        query = {'authorized': False, 'key': key}
         query_results = client_collection.update_many(query, {'$set': {'authorized': True, 'level': level}})
         return f"Authorized {query_results.matched_count} clients", 200
     else:
@@ -234,14 +244,14 @@ def authorize_client():
 
 @app.route('/clients/deauthorize', methods=['GET'])
 def deauthorize_client():
-    username = request.args.get('username')
-    if not username:
-        return 'You must specify a username', 400
+    key = request.args.get('key')
+    if not key:
+        return 'You must specify an API key to deauthorize', 400
     if is_authorized(superuser_permissions=True):
         global database_client
         radar_control_database = database_client['radar-control']
         client_collection = radar_control_database['clients']
-        query = {'authorized': True, 'username': username}
+        query = {'authorized': True, 'key': key}
         query_results = client_collection.update_many(query, {'$set': {'authorized': False}})
         return f"De-authorized {query_results.matched_count} clients", 200
     else:
@@ -279,6 +289,7 @@ def is_authorized(superuser_permissions=False):
     :return: True when the user is authorized, False otherwise
     """
     from_address = request.remote_addr
+    global stdout
     if from_address == '127.0.0.1':
         stdout.write('###  Authorization skipped, permission automatically granted for localhost')
         stdout.flush()
@@ -288,13 +299,22 @@ def is_authorized(superuser_permissions=False):
     radar_control_database = database_client['radar-control']
     client_collection = radar_control_database['clients']
     # Build search filter
-    query = {'authorized': True, 'from': from_address}
+    key = request.cookies.get('key', None)
+    if not key:
+        stdout.write('###  Client checked auth but is missing the key\n')
+        stdout.flush()
+        return False
+    query = {'authorized': True, 'key': key}
     if superuser_permissions:
         query['level'] = 'superuser'
     # Run query
     query_result = list(client_collection.find(query))
     # Return count of matches isn't 0
-    return len(query_result) > 0
+    authorized = len(query_result) > 0
+    if not authorized:
+        stdout.write("!!!  Client not authorized\n")
+        stdout.flush()
+    return authorized
 
 
 # Return number of authorized clients
@@ -474,7 +494,7 @@ if __name__ == '__main__':
                         '--config',
                         dest='config_path',
                         type=str,
-                        default="server_config.toml",
+                        default=const.SERVER_CONFIG,
                         help="Specify non-default configuration file to use")
     arguments = parser.parse_args()
 

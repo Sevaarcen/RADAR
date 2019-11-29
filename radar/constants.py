@@ -14,6 +14,11 @@
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
+# Config files
+CLIENT_CONFIG = "client_config.toml"
+UPLINK_CONFIG = "uplink_config.toml"
+SERVER_CONFIG = "server_config.toml"
+
 # For client/server database controls
 MISSION_PREFIX = "mission-"
 DEFAULT_MISSION = "default"
@@ -31,3 +36,7 @@ PROTECTED_DATABASES = [
 RESTRICTED_DATABASES = [
     'radar-control'
 ]
+
+# For Uplink safety
+UPLINK_API_KEY_FILENAME = "uplink_api_key.txt"
+UPLINK_SAVED_QUEUE_FILENAME = "uplink_queue.txt"

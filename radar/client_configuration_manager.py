@@ -13,27 +13,15 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
+
 import toml
 
 
 def verify_config(config: dict) -> bool:
     critical_error = False
-    server = config.get("server", None)
-    if not server:
-        print("!!!  Client configuration file is missing 'server' section")
-        critical_error = True
-    else:
-        server_host = server.get("host", None)
-        if not server_host:
-            print("!!!  Client configuration missing 'host' in 'server' section")
-            critical_error = True
-        server_port = server.get('port', None)
-        if not server_port:
-            print("!!!  Client configuration missing 'port' in 'server' section, assuming default")
-        server_try_https = server.get('attempt-https', None)
-        if server_try_https is None:
-            print("!!!  Client configuration missing 'attempt-https' in 'server' section, assuming True")
-
+    distributed_watch_interval = config.get("distributed_watch_interval", None)
+    if not distributed_watch_interval:
+        print("!!!  Client configuration file is missing 'distributed_watch_interval' value, using default")
     rules = config.get("rules", None)
     if not rules:
         print("!!!  Client configuration file is missing 'rules' section")

@@ -13,8 +13,10 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
-from radar.objects import ServerConnection, SystemCommand
-from radar.managers import CommandParserManager, PlaybookManager
+
+from radar.system_command import SystemCommand
+from radar.uplink_server_connection import ServerConnection
+from radar.automation_managers import CommandParserManager, PlaybookManager
 from radar.client_configuration_manager import ClientConfigurationManager
 import radar.constants as const
 import threading
@@ -39,7 +41,6 @@ class DistributedWatcher:
         response = self.server_connection.get_distributed_command()
         if not response:
             return
-        # TODO Figure out a way to print that a command was received without disruption
         system_command = SystemCommand(response)
         command_completed = system_command.run()
         if not command_completed:

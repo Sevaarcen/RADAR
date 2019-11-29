@@ -15,7 +15,7 @@
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 import yara
 import importlib
-from radar.objects import SystemCommand
+from radar.system_command import SystemCommand
 from radar.client_configuration_manager import ClientConfigurationManager
 
 

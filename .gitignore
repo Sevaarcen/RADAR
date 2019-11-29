@@ -109,6 +109,11 @@ venv.bak/
 # Local run files
 *.log
 
-# Ignore key files
+# RADAR Uplink saved files
+uplink_*.txt
+
+# Ignore x509 certificate files
+*.key
 *.pem
+*.csr
 *.crt

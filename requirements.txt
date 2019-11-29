@@ -1,3 +1,5 @@
+jsonrpcclient
+jsonrpcserver
 toml
 yara
 bson==0.5.8
