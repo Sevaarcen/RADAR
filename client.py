@@ -57,7 +57,7 @@ def main(raw_command: str):
     else:
         print("n/a", file=sys.stderr)
 
-    print('---===<({[ COMPLETED ]})>===---', file=sys.stderr)
+    print('============<({[ COMPLETED ]})>============', file=sys.stderr)
 
 
 if __name__ == '__main__':

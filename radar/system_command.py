@@ -17,6 +17,7 @@
 import tempfile
 import subprocess
 import time
+import socket
 
 
 class SystemCommand:
@@ -26,6 +27,7 @@ class SystemCommand:
         self.command_output = None
         self.execution_time_start = None
         self.execution_time_end = None
+        self.executed_on_host = socket.getfqdn()
 
     def to_json(self):
         return self.__dict__

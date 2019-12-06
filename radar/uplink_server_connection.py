@@ -47,7 +47,7 @@ class ServerConnection:
         if os.path.exists(const.UPLINK_API_KEY_FILENAME):
             with open(const.UPLINK_API_KEY_FILENAME, 'r') as key_file:
                 self.api_key = key_file.read().strip()
-                self.logger.info("Loaded API key from file")
+                self.logger.info("Successfully loaded API key from file")
         if not self.api_key:
             self.request_authorization()
         self.mission = const.DEFAULT_MISSION

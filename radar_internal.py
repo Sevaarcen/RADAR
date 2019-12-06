@@ -17,6 +17,7 @@
 import argparse
 import importlib
 import json
+import time
 
 from radar.client_uplink_connection import UplinkConnection
 import radar.constants as const
@@ -89,6 +90,30 @@ def modify_auth(uplink: UplinkConnection, api_key: str, superuser=False, authori
     uplink.change_key_authorization(api_key, superuser=superuser, authorizing=authorizing)
 
 
+def document_commands(uplink: UplinkConnection, output_filename: str):
+    out_file = open(output_filename, "w")
+    command_list = uplink.get_data(const.DEFAULT_COMMAND_COLLECTION)
+    for command_data in command_list:
+        start_time_float = command_data.get("execution_time_start")
+        start_time = time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(start_time_float))
+        end_time_float = command_data.get("execution_time_end")
+        end_time = time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(end_time_float))
+        host = command_data.get("executed_on_host")
+        command = command_data.get("command")
+        output = command_data.get("command_output")
+
+        out_file.write(f"RADAR COMMAND EXECUTION $> {command}\n")
+        out_file.write(f"Executed on Host: {host}\n")
+        out_file.write(f"Command Started at: {start_time}\n")
+        out_file.write(f"Command Finished at: {end_time}\n")
+        out_file.write("OUTPUT:\n")
+        out_file.write("```\n")
+        for line in output.split("\n")[:-1]:
+            out_file.write(f'{line.strip()}\n')
+        out_file.write("```\n")
+        out_file.write("\n\n\n")
+
+
 def dispatch(command: str, args=None):
     uplink_connection = UplinkConnection()
     if command == 'info':
@@ -116,6 +141,9 @@ def dispatch(command: str, args=None):
         modify_auth(uplink_connection, args.api_key, superuser=args.superuser)
     elif command == 'remove-auth':
         modify_auth(uplink_connection, args.api_key, authorizing=False)
+    elif command == 'document-commands':
+        output_filename = args.output_filename
+        document_commands(uplink_connection, output_filename)
 
 
 if __name__ == '__main__':
@@ -189,7 +217,13 @@ if __name__ == '__main__':
                                     type=str,
                                     help="API Key to change authorization of")
 
+    document_command_parser = subparsers.add_parser('document-commands', help="Create a file containing all commands" \
+                                                                              "that were executed in the mission - " \
+                                                                              "great for documentation")
+    document_command_parser.add_argument('output_filename',
+                                         type=str,
+                                         help="Specify the filename to write the output to")
+
     arguments = parser.parse_args()
 
     dispatch(arguments.radar_command, args=arguments)
-

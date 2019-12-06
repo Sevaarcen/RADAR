@@ -18,9 +18,12 @@
 sync_interval = 10
 uplink_port = 1684
 
+# logging level (https://docs.python.org/3/library/logging.html#levels)
+logging-level = 20
+
 [server]
 # hostname/ip
-host = "192.168.64.137"
+host = "localhost"
 # port (default 1794)
 port = 1794
 # Use https instead of http

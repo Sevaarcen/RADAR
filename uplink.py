@@ -83,7 +83,6 @@ def sync_data(queue, connection, interval=10):
                     collection = items[0]
                     data = json.loads(items[1])
                     result = connection.send_to_database(collection, data)
-                    print(f"SENT? = {result}")
                     logger.debug(f"Done... {len(queue)} remaining")
                 except json.decoder.JSONDecodeError:
                     logger.error("Invalid JSON data in queue")
@@ -131,7 +130,6 @@ def get_info():
 def get_mission_list():
     global uplink_connection
     mission_list = uplink_connection.get_mission_list()
-    print(mission_list)
     return mission_list
 
 
@@ -203,7 +201,6 @@ def send_distributed_command(command):
 
 def main():
     global logger
-    logger.info
     parser = argparse.ArgumentParser()
     parser.add_argument('-c',
                         '--config',
@@ -224,6 +221,10 @@ def main():
     except FileNotFoundError:
         logger.error(f"Could not find configuration file: {arguments.config_path}")
         exit(1)
+
+    logging_level = config.get("logging-level", None)
+    if logging_level:
+        logger.setLevel(logging_level)
 
     # Push Uplink's trusted CA to environment variables for use by requests
     trusted_ca = config.setdefault("server", {}).get("CA-certificate", None)
