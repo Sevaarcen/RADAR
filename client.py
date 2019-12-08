@@ -63,6 +63,11 @@ def main(raw_command: str):
 if __name__ == '__main__':
     if len(sys.argv) <= 1:
         print(f"USAGE: {sys.argv[0]} <command>")
+        exit(1)
     command = ' '.join(sys.argv[1:])
     print(f"Received command (make sure there isn't shell quoting issues): '{command}'", file=sys.stderr)
-    main(command)
+    try:
+        main(command)
+    except KeyboardInterrupt:
+        print("Received key interrupt... shutting down")
+        exit(-1)
