@@ -57,33 +57,6 @@ class ServerConnection:
     def __str__(self):
         return self.server_url
 
-    def open_connection(self):
-        self.logger.debug(f'Attempting to verify connection to {self.server_url}')
-        try:
-            try:
-                server_online = self.attempt_to_connect(max_attempts=5)
-                if server_online:
-                    self.logger.info("Connected to the RADAR control server")
-                else:
-                    self.logger.error("Could not establish a connection with the RADAR control server")
-                    exit(2)
-            except SSLError as ssl_error:
-                self.logger.error(f"The uplink encountered an SSL error: {ssl_error}")
-                exit(2)
-        except KeyboardInterrupt:
-            exit(1)
-
-    def attempt_to_connect(self, max_attempts=10):
-        server_online = False
-        for attempt in range(1, max_attempts + 1):
-            server_online = self.is_connected()
-            if server_online:
-                return True
-            else:
-                time.sleep(1)
-        if not server_online:
-            return False
-
     def is_connected(self):
         """ Connects to the server and checks the HTTP status code
             :return: True if the status code is 200, else False
@@ -100,7 +73,6 @@ class ServerConnection:
         """ Returns information about the client's authorization level
         :return: A tuple containing two booleans - is_authorized and is_superuser
         """
-        
         full_request_url = f'{self.server_url}/info/authorized'
         auth_cookie = {'key': self.api_key}
         req = requests.get(full_request_url, cookies=auth_cookie, verify=self._verify_host)
@@ -154,8 +126,7 @@ class ServerConnection:
         :return: None
         """
         full_request_url = f'{self.server_url}/clients/request?username={self._username}'
-        auth_cookie = {'key': self.api_key}
-        req = requests.get(full_request_url, cookies=auth_cookie, verify=self._verify_host)
+        req = requests.get(full_request_url, verify=self._verify_host)
         if req.status_code != 200:
             self.logger.error(f"HTTP Code received while requesting authorization: {req.status_code}")
             response = req.text
@@ -163,11 +134,11 @@ class ServerConnection:
             exit(1)
         else:
             print(f"Requested authorization: {self._username}@{self.server_url}")
-        api_key = req.text
-        if api_key:
+        self.api_key = req.text
+        if self.api_key:
             try:
                 api_key_file = open(const.UPLINK_API_KEY_FILENAME, 'w')
-                api_key_file.write(api_key)
+                api_key_file.write(self.api_key)
                 api_key_file.close()
             except PermissionError as pe:
                 self.logger.error(f'Could not create api key file: {pe}')

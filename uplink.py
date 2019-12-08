@@ -237,7 +237,6 @@ def main():
     # Initialize server connection
     global uplink_connection
     uplink_connection = ServerConnection(logger, config)
-    uplink_connection.open_connection()
 
     # Start daemon to sync data as it comes into the uplink
     sync_interval = config.setdefault("sync_interval", 10)
