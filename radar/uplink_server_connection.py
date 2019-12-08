@@ -34,9 +34,11 @@ class ServerConnection:
 
         self.sync_interval = self.config.setdefault('sync-interval', 10)
 
+        self.__using_https = self.config['server'].setdefault('use-https', False)
         self._hostname = self.config['server']['host']
         self._port = self.config['server'].setdefault('port', 1794)
-        self.server_url = f'https://{self._hostname}:{self._port}'
+        self._protocol = "https" if self.__using_https else "http"
+        self.server_url = f'{self._protocol}://{self._hostname}:{self._port}'
 
         self._verify_host = self.config['server'].setdefault('verify-host', True)
         self._username = getpass.getuser()
@@ -56,18 +58,14 @@ class ServerConnection:
         return self.server_url
 
     def open_connection(self):
-        attempt_https = self.config.get('server').setdefault('attempt-https', True)
-        use_https = self.config['server'].setdefault('use-https', False)
-        if not use_https:
-            self.server_url = f'http://{self._hostname}:{self._port}'
         self.logger.debug(f'Attempting to verify connection to {self.server_url}')
         try:
             try:
                 server_online = self.attempt_to_connect(max_attempts=5)
                 if server_online:
                     self.logger.info("Connected to the RADAR control server")
-                elif attempt_https:
-                    self.logger.error("Could not establish HTTPS connection with the RADAR control server")
+                else:
+                    self.logger.error("Could not establish a connection with the RADAR control server")
                     exit(2)
             except SSLError as ssl_error:
                 self.logger.error(f"The uplink encountered an SSL error: {ssl_error}")

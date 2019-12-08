@@ -227,8 +227,9 @@ def main():
         logger.setLevel(logging_level)
 
     # Push Uplink's trusted CA to environment variables for use by requests
+    using_https = config.setdefault("server", {}).get("use-https", None)
     trusted_ca = config.setdefault("server", {}).get("CA-certificate", None)
-    if trusted_ca:
+    if using_https and trusted_ca:
         absolute_path = os.path.abspath(trusted_ca)
         config.setdefault("server", {})['CA-certificate'] = absolute_path
         os.environ['REQUESTS_CA_BUNDLE'] = absolute_path
