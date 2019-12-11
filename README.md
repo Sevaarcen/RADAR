@@ -8,6 +8,8 @@ Red-team Analysis, Documentation, and Automation Revolution
 # Requirements
 * Python 3.6 or later
     * packages in requirements.txt
+* Yara installed on Client system
+* A MongoDB server connected to the RADAR Control Server
     
 # Self-signed certificate help
 I used [this guide](https://medium.com/@tbusser/creating-a-browser-trusted-self-signed-ssl-certificate-2709ce43fd15)
