@@ -14,10 +14,14 @@
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
+#!/usr/bin/python
+
 import argparse
 import importlib
 import json
 import time
+import netaddr
+import re
 
 from radar.client_uplink_connection import UplinkConnection
 import radar.constants as const
@@ -28,8 +32,87 @@ def get_info(uplink: UplinkConnection):
     print(info)
 
 
-def distribute_command(uplink: UplinkConnection, command: str):
-    uplink.send_distributed_command(command)
+def distribute_command(uplink: UplinkConnection, distrib_command: str):
+    syntax_pattern = '^(?P<targets>.+) ([iI][nN][tT][oO]) (?P<command>.*{}.*)$'
+    parsed_command = re.search(syntax_pattern, distrib_command)
+    
+    if not parsed_command.group('targets'):
+        print("!!!  Missing targets that go into distributed command")
+        exit(1)
+    if not parsed_command.group('command'):
+        print("!!!  Missing distributed command with placeholder")
+        exit(1)
+
+    unprocessed_target_list = parsed_command.group('targets').split(',')
+    target_list = []
+    for target in unprocessed_target_list:
+        target = target.strip()
+        if len(target) > 0:
+            target_list.append(target)
+
+    command = parsed_command.group('command').strip()
+    if len(target_list) == 0 or command == '':
+        print('!!!  Either targets or command is missing content and is blank')
+        exit(1)
+
+    # IP Input patterns
+    ipaddr_rex = '^([0-9]{1,3}\.){3}[0-9]{1,3}$'
+    iprange_rex = '^([0-9]{1,3}\.){3}[0-9]{1,3} *\- *([0-9]{1,3}\.){3}[0-9]{1,3}$'
+    ipcidr_rex = '^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$'
+
+    # tokenize each target in target_list
+    print("###  Verifying targets")
+    for target in target_list:
+        if re.match(ipaddr_rex, target):
+            print(f"  {target} is an IP address")
+        elif re.match(iprange_rex, target):
+            print(f"  {target} is an IP range")
+        elif re.match(ipcidr_rex, target):
+            print(f"  {target} is an CIDR network")
+        else:
+            print(f"  {target} is a hostname, URL, or other non-IP address target")
+    valid = input("Does this look correct? [Y/n]: ").strip().lower()
+    if len(valid) > 0 and valid[0] != 'y':
+        print('!!!  You said targets are invalid... stopping now')
+        exit(2)
+
+    # Generate every single valid target
+    all_targets = []
+    for target in target_list:
+        try:
+            if re.match(ipaddr_rex, target):
+                host_ip = netaddr.IPAddress(target)
+                all_targets.append(str(host_ip))
+            elif re.match(iprange_rex, target):
+                range_start_end = [ip.strip() for ip in target.split('-')]
+                iprange = netaddr.IPRange(range_start_end[0], range_start_end[1])
+                for host_ip in iprange:
+                    all_targets.append(str(host_ip))
+            elif re.match(ipcidr_rex, target):
+                cidr = netaddr.IPNetwork(target)
+                for host_ip in cidr.iter_hosts():
+                    all_targets.append(str(host_ip))
+            else:
+                all_targets.append(target)
+        except Exception as err:
+            print(f"!!!  Invalid target '{target}': {err}")
+    if len(all_targets) == 0:
+        print("!!!  No valid targets... aborting")
+        exit(1)
+
+    print(f"$$$  A total of {len(all_targets)} targets are valid")
+
+    command_list = [command.replace('{}', target) for target in all_targets]
+    print(f"~~~  Example distirbuted command: '{command_list[0]}'")
+    valid = input("Does this look correct? [Y/n]: ").strip().lower()
+    if len(valid) > 0 and valid[0] != 'y':
+        print('!!!  You said the command is wrong... stopping now')
+        exit(2)
+
+    print(f"$$$ Sending {len(command_list)} commands to be distributed")
+    result = uplink.send_distributed_commands(command_list)
+    if not result:
+        print('!!!  Failed to send the commands to the Uplink')
 
 
 def run_playbook(uplink: UplinkConnection, playbook: str, target: str, args: str):
@@ -155,7 +238,10 @@ if __name__ == '__main__':
     distribute_parser = subparsers.add_parser('distribute', help="Run command on first available client")
     distribute_parser.add_argument('command',
                                    type=str,
-                                   help="Command which will be executed")
+                                   help="Targets and command which will be executed " \
+                                       "with a placeholder '{}' where the target(s) will get substituted separated by the 'into' keyword. " \
+                                       "This could look like: " \
+                                            "127.0.0.1, 192.168.1.0/24, 10.10.10.100-150, scanme.nmap.org INTO nmap {}")
 
     playbook_parser = subparsers.add_parser('playbook', help="Manually run playbook")
     playbook_parser.add_argument('-p',
@@ -217,7 +303,7 @@ if __name__ == '__main__':
                                     type=str,
                                     help="API Key to change authorization of")
 
-    document_command_parser = subparsers.add_parser('document-commands', help="Create a file containing all commands" \
+    document_command_parser = subparsers.add_parser('document-commands', help="Create a file containing all commands " \
                                                                               "that were executed in the mission - " \
                                                                               "great for documentation")
     document_command_parser.add_argument('output_filename',

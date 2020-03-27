@@ -13,6 +13,9 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
+
+#!/usr/bin/python
+
 import os
 
 from flask import Flask, request, jsonify
@@ -275,11 +278,14 @@ def add_distributed_command():
         return 'You must be a superuser', 401
     encoded_data = request.get_data()
     try:
-        command = base64.b64decode(encoded_data).decode()
-    except (TypeError, binascii.Error):
+        command_list = json.loads(base64.b64decode(encoded_data).decode())
+        if not isinstance(command_list, list):
+            raise TypeError("Not a list")
+    except (TypeError, ValueError, binascii.Error):
         return 'Malformed data', 400
     global distributed_command_queue
-    distributed_command_queue.append(command)
+    # Append new commands into queue
+    distributed_command_queue += command_list
     return 'Added command to queue', 200
 
 

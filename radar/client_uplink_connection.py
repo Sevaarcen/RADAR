@@ -121,10 +121,11 @@ class UplinkConnection:
         except ReceivedNon2xxResponseError:
             return False
 
-    def send_distributed_command(self, command: str):
-        rpc_method = 'send_distributed_command'
+    def send_distributed_commands(self, command: list):
+        rpc_method = 'send_distributed_commands'
         try:
             request(self.url, rpc_method, command=command)
             return True
-        except ReceivedNon2xxResponseError:
+        except ReceivedNon2xxResponseError as err:
+            raise err
             return False

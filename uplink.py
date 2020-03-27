@@ -13,6 +13,9 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
+
+#!/usr/bin/python
+
 import argparse
 
 import logging
@@ -193,9 +196,9 @@ def get_data(collection, database=None):
 
 
 @method
-def send_distributed_command(command):
+def send_distributed_commands(command):
     global uplink_connection
-    uplink_connection.send_distributed_command(command)
+    uplink_connection.send_distributed_commands(command)
     return "Done"
 
 
@@ -227,6 +230,7 @@ def main():
         logger.setLevel(logging_level)
 
     # Push Uplink's trusted CA to environment variables for use by requests
+    logger.debug("Begin processing CA / trust settings")
     using_https = config.setdefault("server", {}).get("use-https", None)
     trusted_ca = config.setdefault("server", {}).get("CA-certificate", None)
     if using_https and trusted_ca:
@@ -235,6 +239,7 @@ def main():
         os.environ['REQUESTS_CA_BUNDLE'] = absolute_path
 
     # Initialize server connection
+    logger.debug("Opening connection to RADAR Control Server")
     global uplink_connection
     uplink_connection = ServerConnection(logger, config)
 
@@ -247,6 +252,7 @@ def main():
     watcher.start()
 
     # Run Uplink server
+    logger.debug("Starting RADAR Uplink RESTful API")
     port = config.get("port", 1684)
     # HTTP is okay here because the communication isn't external
     app.run(host="127.0.0.1", port=port)

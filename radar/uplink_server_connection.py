@@ -30,8 +30,10 @@ class ServerConnection:
 
     def __init__(self, logger: logging, config: dict):
         self.logger = logger
+        self.logger.debug("Starting initialize of connection") #TODO
         self.config = config
 
+        self.logger.debug("Gathering Uplink config settings") #TODO
         self.sync_interval = self.config.setdefault('sync-interval', 10)
 
         self.__using_https = self.config['server'].setdefault('use-https', False)
@@ -39,18 +41,22 @@ class ServerConnection:
         self._port = self.config['server'].setdefault('port', 1794)
         self._protocol = "https" if self.__using_https else "http"
         self.server_url = f'{self._protocol}://{self._hostname}:{self._port}'
+        self.logger.debug(f"Uplink is using the RADAR Control Server at: {self.server_url}")
 
         self._verify_host = self.config['server'].setdefault('verify-host', True)
         self._username = getpass.getuser()
         self.is_authorized = None
         self.is_superuser = None
 
+        self.logger.debug("Getting RADAR Control Server API Key") #TODO
         self.api_key = None
         if os.path.exists(const.UPLINK_API_KEY_FILENAME):
+            self.logger.debug("Uplink API Key File exists... loading saved key")
             with open(const.UPLINK_API_KEY_FILENAME, 'r') as key_file:
                 self.api_key = key_file.read().strip()
                 self.logger.info("Successfully loaded API key from file")
         if not self.api_key:
+            self.logger.debug("Uplink API Key File doesn't exist... requesting authorization")
             self.request_authorization()
         self.mission = const.DEFAULT_MISSION
 
@@ -127,13 +133,14 @@ class ServerConnection:
         """
         full_request_url = f'{self.server_url}/clients/request?username={self._username}'
         req = requests.get(full_request_url, verify=self._verify_host)
+        self.logger.debug(repr(req))
         if req.status_code != 200:
             self.logger.error(f"HTTP Code received while requesting authorization: {req.status_code}")
             response = req.text
             self.logger.debug(response)
             exit(1)
         else:
-            print(f"Requested authorization: {self._username}@{self.server_url}")
+            self.logger.info(f"Requested authorization: {self._username}@{self.server_url}")
         self.api_key = req.text
         if self.api_key:
             try:
@@ -167,9 +174,8 @@ class ServerConnection:
         :return: A boolean which is True on success
         """
         try:
-            print("Send to db being processed")
-            print(data)
-            print(type(data))
+            self.logger.debug("Send to db being processed")
+            self.logger.debug(data)
             encoded_data = json.dumps(data).encode('utf-8')
             base64_json = base64.b64encode(encoded_data)
             full_request_url = f'{self.server_url}/database/{const.MISSION_PREFIX}{self.mission}/{collection}/insert'
@@ -208,23 +214,26 @@ class ServerConnection:
             response = req.json()
             return response
 
-    def send_distributed_command(self, command):
+    def send_distributed_commands(self, command_list):
+        if not isinstance(command_list, list):
+            self.logger.error(f'Cannot send distributed commands, it is not a list. It is a {type(command_list)} object')
         full_request_url = f'{self.server_url}/distributed/add'
-        encoded_command = base64.b64encode(command.encode('utf-8'))
+        encoded_command = base64.b64encode(json.dumps(command_list).encode())
         auth_cookie = {'key': self.api_key}
         req = requests.post(full_request_url, cookies=auth_cookie, data=encoded_command, verify=self._verify_host)
         if req.status_code != 200:
-            self.logger.error(f"HTTP Code received while sending distributed command: {req.status_code}")
+            self.logger.error(f"HTTP Code received while sending distributed commands: {req.status_code}")
             response = req.text
             self.logger.debug(response)
         else:
-            print("###  Command added to queue")
+            self.logger.info(f"{len(command_list)} new distibuted commands added to queue")
 
     def get_distributed_command(self):
         full_request_url = f'{self.server_url}/distributed/get'
         auth_cookie = {'key': self.api_key}
         req = requests.get(full_request_url, cookies=auth_cookie, verify=self._verify_host)
         if req.status_code == 200:
+            self.logger.debug(f"Got command from distributed queue: {req.text}")
             return req.text
         elif req.status_code == 304:
             return None

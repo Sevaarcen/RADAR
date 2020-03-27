@@ -27,31 +27,37 @@ class CommandParserManager:
         self.rule_path = client_config['rules']['parser_rules']
         self.rules = yara.compile(self.rule_path)
 
+        self.current_command = None
+        self.metadata_results_buffer = None
+        self.target_results_buffer = None
+    
+    def yara_callback(self, match_data):
+        try:
+            module_to_load = match_data.get('meta', {}).get('module', None)
+            if not module_to_load:
+                print(f'!!!  No parser module specified for parser rule {match_data.get("rule")}')
+            else:
+                parser_module = importlib.import_module(f'radar.parsers.{module_to_load}')
+                metadata, target_data = parser_module.run(self.current_command)
+                self.metadata_results_buffer.update({parser_module.MODULE_NAME: metadata})
+                self.target_results_buffer += target_data
+        except ModuleNotFoundError as mnfe:
+            print(f'!!!  Missing referenced parser: {mnfe}')
+        except AttributeError as ae:
+            print(f'!!!  Malformed parser, missing required attribute: {ae}')
+        except TypeError as te:
+            print(f'!!!  Malformed parser, the run method must take in a "CommandOutput" object: {te}')
+
     def parse(self, command: SystemCommand):
         """ Takes the SystemCommand and runs it through the parsers as defined in the parsing rules (yara file).
         :param command: SystemCommand that was exectured
         :return: Two JSON dictionaries - metadata and target data
         """
-        metadata_results = {"RAW_COMMAND": command.to_json()}
-        target_results = []
-        matches = self.rules.match(data=command.command_output, externals={"ext_command": command.command})
-        for match in matches.get('main', {}):
-            try:
-                module_to_load = match.get('meta', {}).get('module', None)
-                if not module_to_load:
-                    print(f'!!!  No parser module specified for parser rule {match.get("rule")}')
-                else:
-                    parser_module = importlib.import_module(f'radar.parsers.{module_to_load}')
-                    metadata, target_data = parser_module.run(command)
-                    metadata_results.update({parser_module.MODULE_NAME: metadata})
-                    target_results += target_data
-            except ModuleNotFoundError as mnfe:
-                print(f'!!!  Missing referenced parser: {mnfe}')
-            except AttributeError as ae:
-                print(f'!!!  Malformed parser, missing required attribute: {ae}')
-            except TypeError as te:
-                print(f'!!!  Malformed parser, the run method must take in a "CommandOutput" object: {te}')
-        return metadata_results, target_results
+        self.current_command = command
+        self.metadata_results_buffer = {"RAW_COMMAND": command.to_json()}
+        self.target_results_buffer = []
+        matches = self.rules.match(data=command.command_output, externals={"ext_command": command.command}, callback=self.yara_callback, which_callbacks=yara.CALLBACK_MATCHES)
+        return self.metadata_results_buffer, self.target_results_buffer
 
 
 def _flatten(to_flatten, parent_key=""):
@@ -86,7 +92,47 @@ class PlaybookManager:
         self.rule_path = client_config['rules']['playbook_rules']
         self.rules = yara.compile(self.rule_path)
 
+        self.current_target = None
+        self.current_skip_list = None
+        self.current_silent = None
+    
+    def yara_callback(self, match_data):
+        try:
+            module_to_load = match_data.get('meta', {}).get('module', None)
+            if not module_to_load:
+                print(f'!!!  No playbook specified for playbook rule {match_data.get("rule")}')
+            elif module_to_load not in self.current_skip_list:
+                playbook_module = importlib.import_module(f'radar.playbooks.{module_to_load}')
+                results = playbook_module.run(self.current_target)
+                if results and not self.current_silent:
+                    print(results)
+                self.current_skip_list.append(module_to_load)  # Don't rerun the same Playbook, prevent infinite loop
+                self.rules.match(data=self.current_target_data, callback=self.yara_callback, which_callbacks=yara.CALLBACK_MATCHES)  # Recursive
+                return  # Ensure only 1 module is executed per iteration of this method
+        except ModuleNotFoundError as mnfe:
+            print(f'!!!  Missing referenced Playbook: {mnfe}')
+        except AttributeError as ae:
+            print(f'!!!  Malformed Playbook, missing required attribute: {ae}')
+        except TypeError as te:
+            print(f'!!!  Malformed Playbook, the run method must take in the target as a dict: {te}')
+    
     def automate(self, target_list: list, skip_list=[], silent=False):
+        self.current_silent = silent
+        self.current_skip_list = skip_list
+        for target in target_list:
+            if not isinstance(target, dict):
+                print(f"!!!  While running playbook, target wasn't a valid JSON dict: {target}")
+                continue
+            # Pull out variables so it's easier to reference
+            self.current_target_data = _flatten_to_string(target)
+            if 'target_host' not in self.current_target_data or 'services' not in self.current_target_data:
+                print("!!!  Invalid target format, it doesn't conform to the specifications. Skipping...")
+                print(target)
+                continue
+            self.rules.match(data=self.current_target_data, callback=self.yara_callback, which_callbacks=yara.CALLBACK_MATCHES)
+""" 
+    def automate(self, target_list: list, skip_list=[], silent=False):
+        self.current_silent = silent
         new_skip_list = skip_list
         for target in target_list:
             if not isinstance(target, dict):
@@ -118,3 +164,4 @@ class PlaybookManager:
                     print(f'!!!  Malformed Playbook, missing required attribute: {ae}')
                 except TypeError as te:
                     print(f'!!!  Malformed Playbook, the run method must take in the target as a dict: {te}')
+"""

@@ -1,7 +1,6 @@
-jsonrpcclient
-jsonrpcserver
 toml
-yara
+yara-python
+netaddr
 bson==0.5.8
 certifi==2019.9.11
 chardet==3.0.4

@@ -41,6 +41,7 @@ class DistributedWatcher:
         response = self.server_connection.get_distributed_command()
         if not response:
             return
+        print(f"$$$  Received distributed command: {response}")
         system_command = SystemCommand(response)
         command_completed = system_command.run()
         if not command_completed:

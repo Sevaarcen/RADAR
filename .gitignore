@@ -109,6 +109,9 @@ venv.bak/
 # Local run files
 *.log
 
+# Non-default configurations
+*_*_config.toml
+
 # RADAR Uplink saved files
 uplink_*.txt
 
