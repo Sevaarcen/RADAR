@@ -22,6 +22,8 @@ import shutil
 
 from radar.system_command import SystemCommand
 
+rpcclient_cmd_format = ""
+
 def run(target: dict):
     # Check to ensure rpcinfo is installed
     rpcclient_exists = shutil.which('rpcclient')
@@ -32,6 +34,7 @@ def run(target: dict):
     if not target_host:
         return f'!!!  MSRPC enumeration failed, no target_host specified: {target}'
     
+    global rpcclient_cmd_format
     rpcclient_cmd_format = f'''rpcclient -U "" -N {target_host} -c '%s' ''' # Command format
     
     #============================================================
@@ -58,7 +61,6 @@ def run(target: dict):
 
     password_requirements_dict = {}
     for line in get_pw_requirements_cmd.command_output.split('\n'):
-        print(line)
         split_line = line.partition(':')
         field_name = split_line[0].strip()
         field_value = split_line[2].strip()
@@ -75,12 +77,10 @@ def run(target: dict):
     # Grab list of valid user ID's (rid)
     user_rid_list = []
     for line in get_user_list_cmd.command_output.split('\n'):
-        print(line)
         regex = r'user:\[(?P<username>.*?)\] rid:\[(?P<rid>.*?)\]'
         matches = re.search(regex, line)
         if not matches:
             continue
-
         rid = matches.group('rid').strip()
         user_rid_list.append(rid)
     
@@ -88,19 +88,8 @@ def run(target: dict):
     # collect into list
     detailed_user_info = []
     for rid in user_rid_list:
-        print(f"User RID: {rid}")
-        get_user_details_cmd = SystemCommand(rpcclient_cmd_format % f'queryuser {rid}')
-        get_user_details_cmd.run()
-
-        user_info_dict = {'data-source': 'msrpc'}
-        for line in get_user_details_cmd.command_output.split('\n'):
-            print(line)
-            split_line = line.partition(':')
-            field_name = split_line[0].strip()
-            field_value = split_line[2].strip()
-            if field_value == '':  # Ignore non-KV lines
-                continue
-            user_info_dict[field_name] = field_value
+        user_info_dict = query_user_info(rid)
+        user_info_dict['data-source'] = 'msrpc'
         detailed_user_info.append(user_info_dict)
     
     target_details['user-info'] = detailed_user_info
@@ -114,37 +103,87 @@ def run(target: dict):
     # Grab list of valid group ID's (rid)
     group_rid_list = []
     for line in get_group_list_cmd.command_output.split('\n'):
-        print(line)
         regex = r'group:\[(?P<group_name>.*?)\] rid:\[(?P<rid>.*?)\]'
         matches = re.search(regex, line)
         if not matches:
             continue
-
         rid = matches.group('rid').strip()
         group_rid_list.append(rid)
     
     # Join group RID w/ detailed info about it
     detailed_group_info = []
     for rid in group_rid_list:
-        print(f"Group RID: {rid}")
-        # Get fields and values of group
-        get_group_details_cmd = SystemCommand(rpcclient_cmd_format % f'querygroup {rid}')
-        get_group_details_cmd.run()
+        
+        group_info_dict = query_group_info(rid)
+        group_info_dict['data-source'] = 'msrpc'
 
-        group_info_dict = {'data-source': 'msrpc', 'group_rid': rid}  # This field isn't in detailed info, adding beforehand
-        for line in get_group_details_cmd.command_output.split('\n'):
-            print(line)
-            split_line = line.partition(':')
-            field_name = split_line[0].strip()
-            field_value = split_line[2].strip()
-            if field_value == '':  # Ignore non-KV lines
+        # Then get members of group so it's easy to view.
+        get_group_members_cmd = SystemCommand(rpcclient_cmd_format % f'querygroupmem {rid}')
+        get_group_members_cmd.run()
+
+        # Get list of group's members
+        group_member_list = []
+        for line in get_group_members_cmd.command_output.split('\n'):
+            regex = r'rid:\[(?P<member_rid>.*?)\] attr:\[(?P<attr>.*?)\]'
+            matches = re.search(regex, line)
+            if not matches:
                 continue
-            group_info_dict[field_name] = field_value
-        detailed_group_info.append(group_info_dict)
+            # Get basic info about members
+            member_rid = matches.group('member_rid')
+            attr = matches.group('attr')
+            group_member_info_dict = {
+                'user_rid': member_rid,
+                'attr': attr
+            }
+            # Join with username field for ease-of-use
+            member_username = None
+            if member_rid in user_rid_list:  # Already enumerated
+                for userinfo in detailed_user_info:
+                    if member_rid == userinfo.get('user_rid', None):
+                        member_username = userinfo.get('User Name')
+                        break
+            else:  # It's an unknown user
+                # Query info
+                unknown_member_info = query_user_info(member_rid) 
+                # Add info to existing lists
+                user_rid_list.append(member_rid)
+                detailed_user_info.append(unknown_member_info)
+                # Then add the field of interest
+                member_username = unknown_member_info.get('User Name')
+            group_member_info_dict['User Name'] = member_username
+            group_member_list.append(group_member_info_dict)  # Append info to list
+        group_info_dict['member-info'] = group_member_list  # Add list to group dict
     
-    target_details['group-info'] = detailed_group_info
-
-    # TODO add even more enumeration, maybe members of each group (make sure to prevent recursion)
+    target_details['group-info'] = detailed_group_info  # Add group metadata to target details
 
     return f'$$$  MSRPC enumeration completed on {target_host}'
 
+
+def query_user_info(rid: str) -> dict:
+    get_user_details_cmd = SystemCommand(rpcclient_cmd_format % f'queryuser {rid}')
+    get_user_details_cmd.run()
+
+    user_info_dict = {}
+    for line in get_user_details_cmd.command_output.split('\n'):
+        split_line = line.partition(':')
+        field_name = split_line[0].strip()
+        field_value = split_line[2].strip()
+        if field_value == '':  # Ignore non-KV lines
+            continue
+        user_info_dict[field_name] = field_value
+    return user_info_dict
+
+
+def query_group_info(rid: str) -> dict:
+    get_group_details_cmd = SystemCommand(rpcclient_cmd_format % f'querygroup {rid}')
+    get_group_details_cmd.run()
+
+    group_info_dict = {'group_rid': rid}  # This field isn't in detailed info, adding beforehand
+    for line in get_group_details_cmd.command_output.split('\n'):
+        split_line = line.partition(':')
+        field_name = split_line[0].strip()
+        field_value = split_line[2].strip()
+        if field_value == '':  # Ignore non-KV lines
+            continue
+        group_info_dict[field_name] = field_value
+    return group_info_dict

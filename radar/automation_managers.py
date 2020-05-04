@@ -121,7 +121,6 @@ class PlaybookManager:
         self.current_skip_list = skip_list
         for target in target_list:
             self.current_target_dict = target
-            print(target)
             if not isinstance(target, dict):
                 print(f"!!!  While running playbook, target wasn't a valid JSON dict: {target}")
                 continue
