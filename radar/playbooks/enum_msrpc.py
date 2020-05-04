@@ -64,6 +64,8 @@ def run(target: dict):
         split_line = line.partition(':')
         field_name = split_line[0].strip()
         field_value = split_line[2].strip()
+        if field_value != "":
+            continue
         password_requirements_dict[field_name] = field_value
     
     target_details['password-requirements'] = password_requirements_dict
