@@ -32,4 +32,6 @@ rule enum_msrpc_all {
     strings:
         $port = /[[0-9]+\].port = 135/
         $service = /\[[0-9]+\].service = .*msrpc.*/ nocase
+    condition:
+        all of them
 }
