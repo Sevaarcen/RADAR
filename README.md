@@ -8,7 +8,9 @@ Red-team Analysis, Documentation, and Automation Revolution
 # Requirements
 * Python 3.6 or later
     * packages in requirements.txt
-* Yara installed on Client system
+* Following system packages
+    * yara
+    * samba-common (for rpcclient)
 * A MongoDB server connected to the RADAR Control Server
     
 # Self-signed certificate help
