@@ -38,7 +38,7 @@ def run(command: SystemCommand):
                 target_list[len(target_list)-1]['details']['latency'] = split_line[3][1:-1]
 
             elif '/tcp' in line or '/udp' in line:
-                regex = '^(?P<port>[0-9]+)/(?P<protocol>[a-z]+)\s+(?P<state>.*?)(\s+(?P<service>.*))?$'
+                regex = '^(?P<port>[0-9]+)/(?P<protocol>[a-z]+)\s+(?P<state>.*?)(\s+(?P<service>.*))?(\s+(?P<version>.*))?$'
                 matches = re.search(regex, line)
                 if not matches:
                     continue
@@ -52,6 +52,9 @@ def run(command: SystemCommand):
                 service = matches.group('service')
                 if service:
                     info['service'] = service
+                version = matches.group('version')
+                if service:
+                    info['version'] = version
                 target_list[len(target_list)-1]['services'].append(info)
 
             elif 'Network Distance' in line:

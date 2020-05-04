@@ -92,7 +92,7 @@ class PlaybookManager:
         self.rule_path = client_config['rules']['playbook_rules']
         self.rules = yara.compile(self.rule_path)
 
-        self.current_target = None
+        self.current_target_data = None
         self.current_skip_list = None
         self.current_silent = None
     
@@ -103,7 +103,7 @@ class PlaybookManager:
                 print(f'!!!  No playbook specified for playbook rule {match_data.get("rule")}')
             elif module_to_load not in self.current_skip_list:
                 playbook_module = importlib.import_module(f'radar.playbooks.{module_to_load}')
-                results = playbook_module.run(self.current_target)
+                results = playbook_module.run(self.current_target_data)
                 if results and not self.current_silent:
                     print(results)
                 self.current_skip_list.append(module_to_load)  # Don't rerun the same Playbook, prevent infinite loop
