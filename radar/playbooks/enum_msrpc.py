@@ -98,6 +98,8 @@ def run(target: dict):
             split_line = line.partition(':')
             field_name = split_line[0].strip()
             field_value = split_line[2].strip()
+            if field_value == '':  # Ignore non-KV lines
+                continue
             user_info_dict[field_name] = field_value
         detailed_user_info.append(user_info_dict)
     
@@ -134,6 +136,8 @@ def run(target: dict):
             split_line = line.partition(':')
             field_name = split_line[0].strip()
             field_value = split_line[2].strip()
+            if field_value == '':  # Ignore non-KV lines
+                continue
             group_info_dict[field_name] = field_value
         detailed_group_info.append(group_info_dict)
     
