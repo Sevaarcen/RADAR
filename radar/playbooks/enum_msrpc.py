@@ -171,6 +171,11 @@ def query_user_info(rid: str) -> dict:
     get_user_details_cmd = SystemCommand(rpcclient_cmd_format % f'queryuser {rid}')
     get_user_details_cmd.run()
 
+    # If permission denied when querying user
+    if 'NT_STATUS_ACCESS_DENIED' in get_user_details_cmd.command_output:
+        print(f"permission denied when quering user rid: {rid}")
+        return {'user_rid': rid, 'error-message': get_user_details_cmd.command_output}
+
     user_info_dict = {}
     for line in get_user_details_cmd.command_output.split('\n'):
         print(line)
@@ -187,6 +192,11 @@ def query_group_info(rid: str) -> dict:
     print(f"GROUP RID: {rid}")
     get_group_details_cmd = SystemCommand(rpcclient_cmd_format % f'querygroup {rid}')
     get_group_details_cmd.run()
+
+    # If permission denied when querying group
+    if 'NT_STATUS_ACCESS_DENIED' in get_group_details_cmd.command_output:
+        print(f"permission denied when quering group rid: {rid}")
+        return {'group_rid': rid, 'error-message': get_group_details_cmd.command_output}
 
     group_info_dict = {'group_rid': rid}  # This field isn't in detailed info, adding beforehand
     for line in get_group_details_cmd.command_output.split('\n'):
