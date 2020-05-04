@@ -118,7 +118,7 @@ def run(target: dict):
         group_info_dict['data-source'] = 'msrpc'
 
         # Then get members of group so it's easy to view.
-        print(f"GETTING MEMBERS OF {rid}")
+        #print(f"GETTING MEMBERS OF {rid}")
         get_group_members_cmd = SystemCommand(rpcclient_cmd_format % f'querygroupmem {rid}')
         get_group_members_cmd.run()
 
@@ -131,7 +131,7 @@ def run(target: dict):
                 continue
             # Get basic info about members
             member_rid = matches.group('member_rid')
-            print(f"member rid found: {member_rid}")
+            #print(f"member rid found: {member_rid}")
             attr = matches.group('attr')
             group_member_info_dict = {
                 'user_rid': member_rid,
@@ -143,10 +143,10 @@ def run(target: dict):
                 for userinfo in detailed_user_info:
                     if member_rid == userinfo.get('user_rid', None):
                         member_username = userinfo.get('User Name')
-                        print(f"matched known user: {member_username}")
+                        #print(f"matched known user: {member_username}")
                         break
             else:  # It's an unknown user
-                print("DID NOT MATCH KNOWN USER")
+                #print("DID NOT MATCH KNOWN USER")
                 # Query info
                 unknown_member_info = query_user_info(member_rid) 
                 # Add info to existing lists
@@ -154,7 +154,7 @@ def run(target: dict):
                 detailed_user_info.append(unknown_member_info)
                 # Then add the field of interest
                 member_username = unknown_member_info.get('User Name')
-                print(f"member is: {member_username}")
+                #print(f"member is: {member_username}")
             group_member_info_dict['User Name'] = member_username
             group_member_list.append(group_member_info_dict)  # Append info to list
 
@@ -167,18 +167,18 @@ def run(target: dict):
 
 
 def query_user_info(rid: str) -> dict:
-    print(f"USER RID: {rid}")
+    #print(f"USER RID: {rid}")
     get_user_details_cmd = SystemCommand(rpcclient_cmd_format % f'queryuser {rid}')
     get_user_details_cmd.run()
 
     # If permission denied when querying user
     if 'NT_STATUS_ACCESS_DENIED' in get_user_details_cmd.command_output:
-        print(f"permission denied when quering user rid: {rid}")
+        #print(f"permission denied when quering user rid: {rid}")
         return {'user_rid': rid, 'error-message': get_user_details_cmd.command_output}
 
     user_info_dict = {}
     for line in get_user_details_cmd.command_output.split('\n'):
-        print(line)
+        #print(line)
         split_line = line.partition(':')
         field_name = split_line[0].strip()
         field_value = split_line[2].strip()
@@ -189,18 +189,18 @@ def query_user_info(rid: str) -> dict:
 
 
 def query_group_info(rid: str) -> dict:
-    print(f"GROUP RID: {rid}")
+    #print(f"GROUP RID: {rid}")
     get_group_details_cmd = SystemCommand(rpcclient_cmd_format % f'querygroup {rid}')
     get_group_details_cmd.run()
 
     # If permission denied when querying group
     if 'NT_STATUS_ACCESS_DENIED' in get_group_details_cmd.command_output:
-        print(f"permission denied when quering group rid: {rid}")
+        #print(f"permission denied when quering group rid: {rid}")
         return {'group_rid': rid, 'error-message': get_group_details_cmd.command_output}
 
     group_info_dict = {'group_rid': rid}  # This field isn't in detailed info, adding beforehand
     for line in get_group_details_cmd.command_output.split('\n'):
-        print(line)
+        #print(line)
         split_line = line.partition(':')
         field_name = split_line[0].strip()
         field_value = split_line[2].strip()
