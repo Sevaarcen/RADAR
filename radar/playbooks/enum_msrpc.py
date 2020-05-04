@@ -19,4 +19,4 @@ from radar.system_command import SystemCommand
 
 def run(target: dict):
     rpcinfo_exists = os.path.exists('rpcinfo')
-    
+    print(rpcinfo_exists)

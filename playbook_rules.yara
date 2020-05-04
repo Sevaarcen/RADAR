@@ -10,6 +10,7 @@ rule scan_anonymous_ftp {
     condition:
         all of them
 }
+
 rule grab_ftp_file_list {
     meta:
         author = "Cole Daubenspeck"
@@ -20,4 +21,15 @@ rule grab_ftp_file_list {
         $vuln = "Anonymous FTP Login"
     condition:
         all of them
+}
+
+rule enum_msrpc_all {
+    meta:
+        author = "Cole Daubenspeck"
+        updated = "20200504"
+        description = "When MSRPC is running on a Windows machine - a default service"
+        module = "enum_msrpc"
+    strings:
+        $port = /[[0-9]+\].port = 135/
+        $service = /\[[0-9]+\].service = .*msrpc.*/ nocase
 }
