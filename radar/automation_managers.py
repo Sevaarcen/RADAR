@@ -121,6 +121,7 @@ class PlaybookManager:
         self.current_skip_list = skip_list
         for target in target_list:
             self.current_target_dict = target
+            print(target)
             if not isinstance(target, dict):
                 print(f"!!!  While running playbook, target wasn't a valid JSON dict: {target}")
                 continue
@@ -131,38 +132,3 @@ class PlaybookManager:
                 print(target)
                 continue
             self.rules.match(data=self.flat_current_target_data_string, callback=self.yara_callback, which_callbacks=yara.CALLBACK_MATCHES)
-""" 
-    def automate(self, target_list: list, skip_list=[], silent=False):
-        self.current_silent = silent
-        new_skip_list = skip_list
-        for target in target_list:
-            if not isinstance(target, dict):
-                print(f"!!!  While running playbook, target wasn't a valid JSON dict: {target}")
-                continue
-            # Pull out variables so it's easier to reference
-            target_as_string = _flatten_to_string(target)
-            if 'target_host' not in target_as_string or 'services' not in target_as_string:
-                print("!!!  Invalid target format, it doesn't conform to the specifications. Skipping...")
-                print(target)
-                continue
-            matches = self.rules.match(data=target_as_string)
-            for match in matches.get('main', {}):
-                try:
-                    module_to_load = match.get('meta', {}).get('module', None)
-                    if not module_to_load:
-                        print(f'!!!  No playbook specified for playbook rule {match.get("rule")}')
-                    elif module_to_load not in skip_list:
-                        playbook_module = importlib.import_module(f'radar.playbooks.{module_to_load}')
-                        results = playbook_module.run(target)
-                        if results and not silent:
-                            print(results)
-                        new_skip_list.append(module_to_load)  # Don't rerun the same Playbook, prevent infinite loop
-                        self.automate(target_list, skip_list=new_skip_list, silent=silent)  # Recursive
-                        return  # Ensure only 1 module is executed per iteration of this method
-                except ModuleNotFoundError as mnfe:
-                    print(f'!!!  Missing referenced Playbook: {mnfe}')
-                except AttributeError as ae:
-                    print(f'!!!  Malformed Playbook, missing required attribute: {ae}')
-                except TypeError as te:
-                    print(f'!!!  Malformed Playbook, the run method must take in the target as a dict: {te}')
-"""

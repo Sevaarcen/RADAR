@@ -38,7 +38,7 @@ def run(command: SystemCommand):
                 target_list[len(target_list)-1]['details']['latency'] = split_line[3][1:-1]
 
             elif '/tcp' in line or '/udp' in line:
-                regex = '^(?P<port>[0-9]+)/(?P<protocol>[a-z]+)\s+(?P<state>.*?)(\s+(?P<service>.*))?(\s+(?P<version>.*))?$'
+                regex = '^(?P<port>[0-9]+)/(?P<protocol>[a-z]+)\s+(?P<state>.*?)(\s+(?P<service>.*?))?(\s+(?P<version>.*))?$'
                 matches = re.search(regex, line)
                 if not matches:
                     continue
