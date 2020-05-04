@@ -42,7 +42,7 @@ def run(target: dict):
 
     target_details = target.setdefault('details', {})
 
-    if 'NT_STATUS_ACCESS_DENIED' in check_anon_cmd.command_output.split('\n'):
+    if 'NT_STATUS_ACCESS_DENIED' in check_anon_cmd.command_output:
         target_details['anonymous-smb'] = False
         return f'!!!  MSRPC enumeration failed, permission denied on {target_host}'
     
@@ -58,6 +58,7 @@ def run(target: dict):
 
     password_requirements_dict = {}
     for line in get_pw_requirements_cmd.command_output.split('\n'):
+        print(line)
         split_line = line.partition(':')
         field_name = split_line[0].strip()
         field_value = split_line[2].strip()
@@ -74,6 +75,7 @@ def run(target: dict):
     # Grab list of valid user ID's (rid)
     user_rid_list = []
     for line in get_user_list_cmd.command_output.split('\n'):
+        print(line)
         regex = r'user:\[(?P<username>.*?)\] rid:\[(?P<rid>.*?)\]'
         matches = re.search(regex, line)
         if not matches:
@@ -86,11 +88,13 @@ def run(target: dict):
     # collect into list
     detailed_user_info = []
     for rid in user_rid_list:
+        print(f"User RID: {rid}")
         get_user_details_cmd = SystemCommand(rpcclient_cmd_format % f'queryuser {rid}')
         get_user_details_cmd.run()
 
         user_info_dict = {}
         for line in get_user_details_cmd.command_output.split('\n'):
+            print(line)
             split_line = line.partition(':')
             field_name = split_line[0].strip()
             field_value = split_line[2].strip()
@@ -107,7 +111,8 @@ def run(target: dict):
 
     # Grab list of valid group ID's (rid)
     group_rid_list = []
-    for line in get_user_list_cmd.command_output.split('\n'):
+    for line in get_group_list_cmd.command_output.split('\n'):
+        print(line)
         regex = r'group:\[(?P<group_name>.*?)\] rid:\[(?P<rid>.*?)\]'
         matches = re.search(regex, line)
         if not matches:
@@ -119,11 +124,13 @@ def run(target: dict):
     # Join group RID w/ detailed info about it
     detailed_group_info = []
     for rid in group_rid_list:
+        print(f"Group RID: {rid}")
         get_group_details_cmd = SystemCommand(rpcclient_cmd_format % f'querygroup {rid}')
         get_group_details_cmd.run()
 
         group_info_dict = {'rid': rid}  # This field isn't in detailed info, adding beforehand
         for line in get_user_details_cmd.command_output.split('\n'):
+            print(line)
             split_line = line.partition(':')
             field_name = split_line[0].strip()
             field_value = split_line[2].strip()
