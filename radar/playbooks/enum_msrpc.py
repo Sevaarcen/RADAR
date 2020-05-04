@@ -92,7 +92,7 @@ def run(target: dict):
         get_user_details_cmd = SystemCommand(rpcclient_cmd_format % f'queryuser {rid}')
         get_user_details_cmd.run()
 
-        user_info_dict = {}
+        user_info_dict = {'data-source': 'msrpc'}
         for line in get_user_details_cmd.command_output.split('\n'):
             print(line)
             split_line = line.partition(':')
@@ -127,11 +127,12 @@ def run(target: dict):
     detailed_group_info = []
     for rid in group_rid_list:
         print(f"Group RID: {rid}")
+        # Get fields and values of group
         get_group_details_cmd = SystemCommand(rpcclient_cmd_format % f'querygroup {rid}')
         get_group_details_cmd.run()
 
-        group_info_dict = {'rid': rid}  # This field isn't in detailed info, adding beforehand
-        for line in get_user_details_cmd.command_output.split('\n'):
+        group_info_dict = {'data-source': 'msrpc', 'group_rid': rid}  # This field isn't in detailed info, adding beforehand
+        for line in get_group_details_cmd.command_output.split('\n'):
             print(line)
             split_line = line.partition(':')
             field_name = split_line[0].strip()
