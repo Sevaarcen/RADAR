@@ -42,7 +42,7 @@ def run(target: dict):
 
     target_details = target.setdefault('details', {})
 
-    if 'NT_STATUS_ACCESS_DENIED' in check_anon_cmd.command_output:
+    if 'NT_STATUS_ACCESS_DENIED' in check_anon_cmd.command_output.split('\n'):
         target_details['anonymous-smb'] = False
         return f'!!!  MSRPC enumeration failed, permission denied on {target_host}'
     
@@ -57,7 +57,7 @@ def run(target: dict):
     get_pw_requirements_cmd.run()
 
     password_requirements_dict = {}
-    for line in get_pw_requirements_cmd.command_output:
+    for line in get_pw_requirements_cmd.command_output.split('\n'):
         split_line = line.partition(':')
         field_name = split_line[0].strip()
         field_value = split_line[2].strip()
@@ -73,7 +73,7 @@ def run(target: dict):
 
     # Grab list of valid user ID's (rid)
     user_rid_list = []
-    for line in get_user_list_cmd.command_output:
+    for line in get_user_list_cmd.command_output.split('\n'):
         regex = r'user:\[(?P<username>.*?)\] rid:\[(?P<rid>.*?)\]'
         matches = re.search(regex, line)
         if not matches:
@@ -90,7 +90,7 @@ def run(target: dict):
         get_user_details_cmd.run()
 
         user_info_dict = {}
-        for line in get_user_details_cmd.command_output:
+        for line in get_user_details_cmd.command_output.split('\n'):
             split_line = line.partition(':')
             field_name = split_line[0].strip()
             field_value = split_line[2].strip()
@@ -107,7 +107,7 @@ def run(target: dict):
 
     # Grab list of valid group ID's (rid)
     group_rid_list = []
-    for line in get_user_list_cmd.command_output:
+    for line in get_user_list_cmd.command_output.split('\n'):
         regex = r'group:\[(?P<group_name>.*?)\] rid:\[(?P<rid>.*?)\]'
         matches = re.search(regex, line)
         if not matches:
@@ -123,7 +123,7 @@ def run(target: dict):
         get_group_details_cmd.run()
 
         group_info_dict = {'rid': rid}  # This field isn't in detailed info, adding beforehand
-        for line in get_user_details_cmd.command_output:
+        for line in get_user_details_cmd.command_output.split('\n'):
             split_line = line.partition(':')
             field_name = split_line[0].strip()
             field_value = split_line[2].strip()
