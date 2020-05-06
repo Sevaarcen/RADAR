@@ -12,7 +12,7 @@ git clone https://github.com/Sevaarcen/RADAR.git
 2. Install system and python packages
 ```
 sudo pip install -r requirements.txt
-sudo yum install -y yara
+sudo ./install_system_packages.sh # Or install packages listed in README.md
 ```
 
 
