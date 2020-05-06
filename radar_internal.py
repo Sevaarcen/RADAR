@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 #  This file is part of RADAR.
 #  Copyright (C) 2019 Cole Daubenspeck
 #
@@ -13,8 +14,6 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
-
-#!/usr/bin/python
 
 import argparse
 import importlib

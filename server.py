@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 #  This file is part of RADAR.
 #  Copyright (C) 2019 Cole Daubenspeck
 #
