@@ -54,10 +54,7 @@ class DistributedWatcher:
         # If this fails, just crash and propogate error - this function is not dynamic
         self.queue_add_func(const.DEFAULT_COMMAND_COLLECTION, command_json)
         self.queue_add_func(const.DEFAULT_METADATA_COLLECTION, metadata)
-        #self.server_connection.send_to_database(const.DEFAULT_COMMAND_COLLECTION, command_json)
-        #self.server_connection.send_to_database(const.DEFAULT_METADATA_COLLECTION, metadata)
         if len(targets) != 0:
-            #self.server_connection.send_to_database(const.DEFAULT_TARGET_COLLECTION, targets)
             self.queue_add_func(const.DEFAULT_TARGET_COLLECTION, targets)
 
         # Run again without waiting if finished
