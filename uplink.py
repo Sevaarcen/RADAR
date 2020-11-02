@@ -27,7 +27,6 @@ import atexit
 
 from multiprocessing import Process, Manager
 from flask import Flask, request, Response
-from jsonrpcserver import method, dispatch
 
 import radar.constants as const
 from radar.distributed import DistributedWatcher
@@ -47,12 +46,15 @@ logger.setLevel(logging.DEBUG)
 uplink_connection: ServerConnection = None
 send_queue = None
 
+current_mission = const.DEFAULT_MISSION
+
 
 def start_sync_daemon(sync_interval):
     global logger   
     logger.debug("Sync daemon starting")
     global send_queue
     global uplink_connection
+
     if os.path.exists(const.UPLINK_SAVED_QUEUE_FILENAME):
         logger.debug("The queue file exists")
         queue_file = open("uplink_queue.txt", "r")
@@ -75,17 +77,18 @@ def sync_data(queue, connection, interval=10):
         while True:
             logger.debug(f"Checking if data needs to be synced")
             while len(queue) != 0:
-                logger.debug("Syncing data with RADAR Control Server")
+                logger.debug("Uplink send queue contains data - beginning syncing with RADAR Control Server")
                 to_sync = queue.pop()
-                items = to_sync.split(',', 1)
-                if len(items) != 2:
+                items = to_sync.split(',', 2)
+                if len(items) != 3:
                     logger.warning(f"Invalid message in queue: {to_sync}")
                     return
                 try:
-                    collection = items[0]
-                    data = json.loads(items[1])
-                    result = connection.send_to_database(collection, data)
-                    logger.debug(f"Done... {len(queue)} remaining")
+                    mission = items[0]
+                    collection = items[1]
+                    data = json.loads(items[2])
+                    result = connection.send_to_database(mission, collection, data)
+                    logger.debug(f"Data was sucessfully sent... {len(queue)} requests remaining")
                 except json.decoder.JSONDecodeError:
                     logger.error("Invalid JSON data in queue")
                     logger.debug(items[1])
@@ -99,7 +102,7 @@ def write_queue_file(queue):
     global logger
     logger.debug("Writing send queue to file")
     if len(queue) == 0:
-        logger.debug("Nothing in queue")
+        logger.debug("Nothing in queue to dump")
         return
     logger.debug(f"{len(queue)} items in queue during cleanup")
     try:
@@ -113,92 +116,135 @@ def write_queue_file(queue):
         logger.debug(send_queue)
 
 
-@app.route("/", methods=["POST"])
-def handle_request():
-    if request.remote_addr != '127.0.0.1':
-        return "no", 403
-    req = request.get_data().decode()
-    response = dispatch(req)
-    return Response(str(response), response.http_status, mimetype="application/json")
+def append_to_sync_queue(collection: str, data: dict):
+    joined_data = f'{current_mission},{collection},{json.dumps(data)}'
+    global send_queue
+    send_queue.append(joined_data)
 
 
-@method
+@app.route("/info/status", methods=["GET"])
 def get_info():
+    global current_mission
     global uplink_connection
-    return f"Joined to the mission {uplink_connection.mission} at {uplink_connection.server_url}"
+    return f"Joined to the mission '{current_mission}' at {uplink_connection.server_url}"
 
 
-@method
+#@method
+@app.route("/mission/list", methods=["GET"])
 def get_mission_list():
     global uplink_connection
-    mission_list = uplink_connection.get_mission_list()
+    mission_list = {}
+    mission_list["result"] = uplink_connection.get_mission_list()
     return mission_list
 
 
-@method
-def switch_mission(new_mission: str, create=False):
-    global uplink_connection
+#@method
+@app.route("/mission/switch", methods=["POST"])
+def switch_mission():
+    new_mission = request.args.get("new_mission")
+    create = request.args.get("create", False, type=bool)
+    if not new_mission:
+        return "Did not specify mission to switch to", 400
+    global logger
+    global current_mission
+    logger.debug(f"Current mission is '{current_mission}'")
     mission_list = uplink_connection.get_mission_list()
-    assert new_mission in mission_list or create, "Mission doesn't exist"
-    uplink_connection.mission = new_mission
-    return f"Mission is now: '{uplink_connection.mission}'"
+    # If mission does not exist, create it or error
+    if not new_mission in mission_list:
+        logger.debug(f"Mission '{new_mission}' not in list of {mission_list}")
+        if not create:
+            logger.debug("Not creating it")
+            return "Mission does not exist", 404
+        else:
+            current_mission = new_mission
+            logger.debug(f"Mission has been changed to: '{current_mission}'")
+            return f"Mission is now: '{current_mission}'", 201
+
+    # Else mission exists and can just be set
+    current_mission = new_mission
+    logger.debug(f"Mission has been changed to: '{current_mission}'")
+    return f"Mission is now: '{current_mission}'", 200
 
 
-@method
+#@method
+@app.route("/authorization/info", methods=["GET"])
 def is_authorized():
     global uplink_connection
     user_auth, su_auth = uplink_connection.get_authorization()
     if not user_auth:
-        return f"The uplink is not authorized, using API key: '{uplink_connection.api_key}'"
+        return f"The uplink is not authorized, using API key: '{uplink_connection.api_key}'", 401
     else:
         return f"The uplink is authorized (SU={su_auth}) with API key: '{uplink_connection.api_key}'"
 
 
-@method
+#@method
+@app.route("/authorization/modify", methods=["POST"])
 def modify_authorization(api_key, superuser=False, authorizing=True):
+    api_key = request.args.get("api_key")
+    if not api_key:
+        return "No API key specified", 400
+    superuser = request.args.get("superuser", False, type=bool)
+    authorizing = request.args.get("authorizing", True, type=bool)
     global uplink_connection
     result = uplink_connection.modify_authorization(api_key, superuser=superuser, authorizing=authorizing)
-    assert result, "Could not be completed"
-    return result
+    if not result:
+        return f"Could not modify authorization due to error", 500
+    return "API key's authorization has been modified"
 
 
-@method
-def get_database_structure():
+#@method
+@app.route("/database/info/structure", methods=["GET"])
+def get_database_structure() -> dict:
     global uplink_connection
     structure = uplink_connection.get_mongo_structure()
     return structure
 
 
-@method
-def get_collections():
+#@method
+@app.route("/database/info/collections", methods=["GET"])
+def get_collections() -> dict:
     global uplink_connection
-    collections = uplink_connection.get_collection_list()
+    global current_mission
+    collections = uplink_connection.get_collection_list(f"{const.MISSION_PREFIX}{current_mission}")
     return collections
 
 
-@method
-def send_data(collection, data):
-    assert isinstance(data, (dict, list)), "The data must be json!"
-    joined_data = f'{collection},{json.dumps(data)}'
+#@method
+@app.route("/database/data/send", methods=["POST"])
+def send_data():
+    collection = request.args.get("collection")
+    data = request.get_json()
+    if not collection:
+        return "Missing 'collection' argument", 400
+    append_to_sync_queue(collection, data)
     global send_queue
-    send_queue.append(joined_data)
     global logger
     logger.info(f"Added data to send queue, now waiting to send {len(send_queue)} item(s)")
     return "Added command to send queue"
 
 
-@method
-def get_data(collection, database=None):
+#@method
+@app.route("/database/data/gather", methods=["GET"])
+def get_data():
+    collection = request.args.get("collection")
+    if not collection:
+        return "Missing 'collection' argument", 400
+    global current_mission
+    database = request.args.get("database", f"{const.MISSION_PREFIX}{current_mission}")
     global uplink_connection
-    con_resp = uplink_connection.get_database_contents(collection, database=database)
-    return con_resp
+    con_resp = uplink_connection.get_database_contents(database, collection)
+    return json.dumps(con_resp)
 
 
-@method
-def send_distributed_commands(command):
+#@method
+@app.route("/distributed/submit", methods=["POST"])
+def send_distributed_commands():
+    commands = request.get_json()
+    if not isinstance(commands, list):
+        return "Commands is not an array", 400
     global uplink_connection
-    uplink_connection.send_distributed_commands(command)
-    return "Done"
+    uplink_connection.send_distributed_commands(commands)
+    return f"{len(commands)} new commands submitted to queue"
 
 
 def main():
@@ -247,14 +293,16 @@ def main():
     start_sync_daemon(sync_interval)
 
     # Run distributed command processor
-    watcher = DistributedWatcher(uplink_connection)
+    watch_interval = config.setdefault("distributed", {}).get("watch_interval", 60)
+    watcher = DistributedWatcher(append_to_sync_queue, uplink_connection, watch_interval=watch_interval)
     watcher.start()
 
     # Run Uplink server
     logger.debug("Starting RADAR Uplink RESTful API")
     port = config.get("port", 1684)
     # HTTP is okay here because the communication isn't external
-    app.run(host="127.0.0.1", port=port)
+    # Bind to localhost only to not allow external communication
+    app.run(host=const.LOCAL_COMM_ADDR, port=port)
 
 
 if __name__ == '__main__':

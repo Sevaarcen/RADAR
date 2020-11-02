@@ -29,6 +29,7 @@ import radar.constants as const
 class ServerConnection:
 
     def __init__(self, logger: logging, config: dict):
+        print("A NEW SERVER UPLINK CONNECTION HAS BEEN MADE")
         self.logger = logger
         self.logger.debug("Starting initialize of connection") #TODO
         self.config = config
@@ -58,7 +59,6 @@ class ServerConnection:
         if not self.api_key:
             self.logger.debug("Uplink API Key File doesn't exist... requesting authorization")
             self.request_authorization()
-        self.mission = const.DEFAULT_MISSION
 
     def __str__(self):
         return self.server_url
@@ -119,12 +119,13 @@ class ServerConnection:
         req = requests.get(full_request_url, cookies=auth_cookie, verify=self._verify_host)
         return req.json()
 
-    def get_collection_list(self) -> list:
+    def get_collection_list(self, database) -> dict:
         full_request_url = f'{self.server_url}/info/database'
         auth_cookie = {'key': self.api_key}
         req = requests.get(full_request_url, cookies=auth_cookie, verify=self._verify_host)
         database_structure = req.json()
-        collection_list = database_structure.get(f'{const.MISSION_PREFIX}{self.mission}', [])
+        collection_list = {}
+        collection_list["result"] = database_structure.get(database, [])
         return collection_list
 
     def request_authorization(self):
@@ -167,18 +168,19 @@ class ServerConnection:
             self.logger.info(req.text)
             return True
 
-    def send_to_database(self, collection: str, data: (list, dict)):
+    def send_to_database(self, mission: str, collection: str, data):
         """ Send the command and command results to the server to be inserted into the Mongo database
+        :param mission: Name of mission to store data with
         :param collection: Which collection to sync the data to (use the constants module)
         :param data: The JSON dict or list of dicts to insert into the database
         :return: A boolean which is True on success
         """
         try:
-            self.logger.debug("Send to db being processed")
+            self.logger.debug(f"The following data is being send to database collection: '{const.MISSION_PREFIX}{mission}' '{collection}'")
             self.logger.debug(data)
             encoded_data = json.dumps(data).encode('utf-8')
             base64_json = base64.b64encode(encoded_data)
-            full_request_url = f'{self.server_url}/database/{const.MISSION_PREFIX}{self.mission}/{collection}/insert'
+            full_request_url = f'{self.server_url}/database/{const.MISSION_PREFIX}{mission}/{collection}/insert'
             auth_cookie = {'key': self.api_key}
             req = requests.post(full_request_url, cookies=auth_cookie, data=base64_json, verify=self._verify_host)
             if req.status_code != 200:
@@ -194,14 +196,12 @@ class ServerConnection:
             self.logger.debug(data)
             return False
 
-    def get_database_contents(self, collection: str, database=None):
+    def get_database_contents(self, database: str, collection: str):
         """ List the contents of one of the database collections from the server in JSON
+        :param database: The full name of the database you want to view
         :param collection: The name of the collection you want to view from the current mission
-        :param database:
         :return: None
         """
-        if not database:
-            database = f'{const.MISSION_PREFIX}{self.mission}'
         full_request_url = f'{self.server_url}/database/{database}/{collection}/list'
         auth_cookie = {'key': self.api_key}
         req = requests.get(full_request_url, cookies=auth_cookie, verify=self._verify_host)
@@ -226,7 +226,7 @@ class ServerConnection:
             response = req.text
             self.logger.debug(response)
         else:
-            self.logger.info(f"{len(command_list)} new distibuted commands added to queue")
+            self.logger.info(f"{len(command_list)} new distributed commands added to queue")
 
     def get_distributed_command(self):
         full_request_url = f'{self.server_url}/distributed/get'

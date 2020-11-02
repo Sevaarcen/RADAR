@@ -13,21 +13,21 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
+import threading
+import time
+
+import radar.constants as const
 
 from radar.system_command import SystemCommand
 from radar.uplink_server_connection import ServerConnection
 from radar.automation_managers import CommandParserManager, PlaybookManager
 from radar.client_configuration_manager import ClientConfigurationManager
-import radar.constants as const
-import threading
-import time
 
 
 class DistributedWatcher:
-    def __init__(self, server_connection: ServerConnection, watch_interval=None):
+    def __init__(self, queue_add_func: 'function', server_connection: ServerConnection, watch_interval=60):
+        self.queue_add_func = queue_add_func
         self.server_connection = server_connection
-        if not watch_interval:
-            watch_interval = ClientConfigurationManager().config.get("distributed-watch-interval", 60)
         self.interval = watch_interval
         self.__parser_manager = CommandParserManager()
         self.__playbook_manager = PlaybookManager()
@@ -41,23 +41,24 @@ class DistributedWatcher:
         response = self.server_connection.get_distributed_command()
         if not response:
             return
-        print(f"$$$  Received distributed command: {response}")
-        system_command = SystemCommand(response)
-        command_completed = system_command.run()
-        if not command_completed:
-            print(f"!!!  Error while running distributed command: {response}")
-            return
+        print(f"$$$  Received distributed command: '{response}'")
+        system_command = SystemCommand(response, additional_meta={"run-mode": "distributed"})
+        command_completed = system_command.run(silent=True)  # Run w/o yielding output
 
         # Get command output, parse it, and run playbooks
         command_json = system_command.to_json()
         metadata, targets = self.__parser_manager.parse(system_command)
         self.__playbook_manager.automate(targets, silent=True)
 
-        # Silently sync to DB
-        self.server_connection.send_to_database(const.DEFAULT_COMMAND_COLLECTION, command_json)
-        self.server_connection.send_to_database(const.DEFAULT_METADATA_COLLECTION, metadata)
+        # Silently sync to DB using provided callback command
+        # If this fails, just crash and propogate error - this function is not dynamic
+        self.queue_add_func(const.DEFAULT_COMMAND_COLLECTION, command_json)
+        self.queue_add_func(const.DEFAULT_METADATA_COLLECTION, metadata)
+        #self.server_connection.send_to_database(const.DEFAULT_COMMAND_COLLECTION, command_json)
+        #self.server_connection.send_to_database(const.DEFAULT_METADATA_COLLECTION, metadata)
         if len(targets) != 0:
-            self.server_connection.send_to_database(const.DEFAULT_TARGET_COLLECTION, targets)
+            #self.server_connection.send_to_database(const.DEFAULT_TARGET_COLLECTION, targets)
+            self.queue_add_func(const.DEFAULT_TARGET_COLLECTION, targets)
 
         # Run again without waiting if finished
         self.__run_loop_once()

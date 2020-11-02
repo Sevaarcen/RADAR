@@ -19,9 +19,6 @@ import toml
 
 def verify_config(config: dict) -> bool:
     critical_error = False
-    distributed_watch_interval = config.get("distributed_watch_interval", None)
-    if not distributed_watch_interval:
-        print("!!!  Client configuration file is missing 'distributed_watch_interval' value, using default")
     rules = config.get("rules", None)
     if not rules:
         print("!!!  Client configuration file is missing 'rules' section")

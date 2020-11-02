@@ -13,10 +13,14 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
+import requests
+import re
 
 from jsonrpcclient import request
 from jsonrpcclient.exceptions import ReceivedNon2xxResponseError
 from requests.exceptions import ConnectionError
+
+import radar.constants as const
 
 from radar.client_configuration_manager import ClientConfigurationManager
 
@@ -25,7 +29,7 @@ class UplinkConnection:
     def __init__(self):
         self.config = ClientConfigurationManager().config
         self.uplink_port = self.config.setdefault('uplink_port', 1684)
-        self.url = f'http://localhost:{self.uplink_port}'
+        self.url = f'http://{const.LOCAL_COMM_ADDR}:{self.uplink_port}'
         self._verify_connection()
 
     def _verify_connection(self):
@@ -35,97 +39,119 @@ class UplinkConnection:
             exit(1)
 
     def get_info(self):
-        rpc_method = "get_info"
-        try:
-            req = request(self.url, rpc_method)
-            return req.data.result
-        except (ReceivedNon2xxResponseError, ConnectionError):
+        endpoint = "/info/status"
+        req = requests.get(f"{self.url}{endpoint}")
+        if not req.ok:
+            print(f"!!!  Uplink returned a non 200 status code: {req.status_code} {req.reason}")
             return False
+        return req.text
 
     def get_mission_list(self):
-        rpc_method = "get_mission_list"
-        try:
-            req = request(self.url, rpc_method)
-            mission_list = req.data.result
-            return mission_list
-        except ReceivedNon2xxResponseError:
+        endpoint = "/mission/list"
+        req = requests.get(f"{self.url}{endpoint}")
+        if not req.ok:
+            print(f"!!!  Uplink returned a non 200 status code: {req.status_code} {req.reason}")
             return False
+        return req.json()
 
     def set_mission(self, new_mission: str):
-        rpc_method = 'switch_mission'
-        try:
-            req = request(self.url, rpc_method, new_mission=new_mission)
-            mission_list = req.data.result
-            return mission_list
-        except ReceivedNon2xxResponseError as err:
-            if '400 status' in err:
-                create_yn = input(f"The mission '{new_mission}' doesn't exist yet... create it? [Y/n]: ")
-                try:
-                    if create_yn.lower()[0] == 'y':
-                        req = request(self.url, rpc_method, new_mission=new_mission, create=True)
-                        print(req.data.result)
-                    else:
-                        return False
-                except IndexError:
-                    return False
+        endpoint = "/mission/switch"
+        if not re.match("^\w+$", new_mission):
+            print("Invalid mission name")
+            return False
+        parameters = {
+            "new_mission": new_mission
+        }
+        req = requests.post(f"{self.url}{endpoint}", params=parameters)
+        if req.ok:
+            print(req.text)
+            return True
+        elif req.status_code == 404:
+            create_yn = input(f"The mission '{new_mission}' doesn't exist yet... create it? [Y/n]: ")
+            if create_yn and create_yn.lower()[0] != 'y':
+                print("User did not want to create a new mission")
+                return False
+            parameters["create"] = True
+            req = requests.post(f"{self.url}{endpoint}", params=parameters)
+            if req.ok:
+                print(req.text)
+                return True
+            else:
+                print(f"!!!  Uplink returned a non 200 status code: {req.status_code} {req.reason}")
+                return False
+        else:
+            print(f"!!!  Uplink returned a non 200 status code: {req.status_code} {req.reason}")
+            return False
 
     def get_key_authorization(self):
-        rpc_method = 'is_authorized'
-        try:
-            req = request(self.url, rpc_method)
-            return req.data.result
-        except ReceivedNon2xxResponseError:
+        endpoint = "/authorization/info"
+        req = requests.get(f"{self.url}{endpoint}")
+        if not req.ok:
+            print(f"!!!  Uplink returned a non 200 status code: {req.status_code} {req.reason}")
             return False
+        return req.text
 
     def change_key_authorization(self, api_key: str, superuser=False, authorizing=True):
-        rpc_method = 'modify_authorization'
-        try:
-            request(self.url, rpc_method, api_key=api_key, superuser=superuser, authorizing=authorizing)
-            if authorizing:
-                print(f"$$$  API key is now authorized (SU={superuser})")
-            else:
-                print("$$$  API key is now deauthorized")
-            return True
-        except ReceivedNon2xxResponseError:
+        endpoint = "/authorization/modify"
+        parameters = {
+            "api_key": api_key,
+            "superuser": superuser,
+            "authorizing": authorizing
+        }
+        req = requests.post(f"{self.url}{endpoint}", params=parameters)
+        if not req.ok:
+            print(f"!!!  Uplink returned a non 200 status code: {req.status_code} {req.reason}")
             return False
+        print(req.text)
+        if authorizing:
+            print(f"$$$  API key is now authorized (SU={superuser})")
+        else:
+            print("$$$  API key is now deauthorized")
+        return True
 
     def get_database_structure(self):
-        rpc_method = 'get_database_structure'
-        try:
-            req = request(self.url, rpc_method)
-            return req.data.result
-        except ReceivedNon2xxResponseError:
+        endpoint = "/database/info/structure"
+        req = requests.get(f"{self.url}{endpoint}")
+        if not req.ok:
+            print(f"!!!  Uplink returned a non 200 status code: {req.status_code} {req.reason}")
             return False
+        return req.json()
 
     def list_collections(self):
-        rpc_method = 'get_collections'
-        try:
-            req = request(self.url, rpc_method)
-            return req.data.result
-        except ReceivedNon2xxResponseError:
+        endpoint = "/database/info/collections"
+        req = requests.get(f"{self.url}{endpoint}")
+        if not req.ok:
+            print(f"!!!  Uplink returned a non 200 status code: {req.status_code} {req.reason}")
             return False
+        return req.json()
 
-    def send_data(self, collection: str, data: dict):
-        rpc_method = 'send_data'
-        try:
-            request(self.url, rpc_method, collection=collection, data=data)
-            return True
-        except ReceivedNon2xxResponseError:
+    def send_data(self, collection, data):
+        endpoint = "/database/data/send"
+        parameters =  {
+            "collection": collection
+        }
+        req = requests.post(f"{self.url}{endpoint}", params=parameters, json=data)
+        if not req.ok:
+            print(f"!!!  Uplink returned a non 200 status code: {req.status_code} {req.reason}")
             return False
+        return req.text
 
     def get_data(self, collection, database=None):
-        rpc_method = 'get_data'
-        try:
-            req = request(self.url, rpc_method, collection=collection, database=database)
-            return req.data.result
-        except ReceivedNon2xxResponseError:
+        endpoint = "/database/data/gather"
+        parameters =  {
+            "collection": collection,
+            "database": database
+        }
+        req = requests.get(f"{self.url}{endpoint}", params=parameters)
+        if not req.ok:
+            print(f"!!!  Uplink returned a non 200 status code: {req.status_code} {req.reason}")
             return False
+        return req.json()
 
     def send_distributed_commands(self, command: list):
-        rpc_method = 'send_distributed_commands'
-        try:
-            request(self.url, rpc_method, command=command)
-            return True
-        except ReceivedNon2xxResponseError as err:
-            raise err
+        endpoint = "/distributed/submit"
+        req = requests.post(f"{self.url}{endpoint}", json=command)
+        if not req.ok:
+            print(f"!!!  Uplink returned a non 200 status code: {req.status_code} {req.reason} -- {req.text}")
             return False
+        return req.text
