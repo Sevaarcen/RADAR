@@ -18,6 +18,7 @@
 #!/usr/bin/python
 
 import os
+from typing import MutableMapping
 
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
@@ -336,7 +337,7 @@ def number_of_clients():
     return len(query_result)
 
 
-def verify_config(config: dict) -> bool:
+def verify_config(config: MutableMapping) -> bool:
     global stderr
     critical_error = False
     # Verify web_server section (required)

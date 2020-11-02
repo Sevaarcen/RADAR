@@ -99,7 +99,7 @@ def distribute_command(uplink: UplinkConnection, distrib_command: str):
         print("!!!  No valid targets... aborting")
         exit(1)
 
-    print(f"$$$  A total of {len(all_targets)} targets are valid")
+    print(f"$$$  A total of {len(all_targets)} targets were marked as valid")
 
     command_list = [command.replace('{}', target) for target in all_targets]
     print(f"~~~  Example distirbuted command: '{command_list[0]}'")
@@ -112,6 +112,8 @@ def distribute_command(uplink: UplinkConnection, distrib_command: str):
     result = uplink.send_distributed_commands(command_list)
     if not result:
         print('!!!  Failed to send the commands to the Uplink')
+    else:
+        print(result)
 
 
 def run_playbook(uplink: UplinkConnection, playbook: str, target: str, args: str):
@@ -136,16 +138,22 @@ def run_playbook(uplink: UplinkConnection, playbook: str, target: str, args: str
 
 def list_database_structure(uplink: UplinkConnection):
     structure = uplink.get_database_structure()
+    print(type(structure))
     for database_name, collection_list in structure.items():
-        print(database_name)
+        if database_name in const.PROTECTED_DATABASES:
+            print(f'! {database_name}')
+        elif database_name in const.RESTRICTED_DATABASES:
+            print(f'# {database_name}')
+        else:
+            print(database_name)
         for collection in collection_list:
-            print(f'> {collection}')
+            print(f'--- {collection}')
 
 
 def list_collections(uplink: UplinkConnection):
     collection_list = uplink.list_collections()
-    for collection in collection_list:
-        print(collection)
+    for collection in collection_list.get("result", []):
+        print(f"*  {collection}")
 
 
 def read_database_contents(uplink: UplinkConnection, collection: str, database=None):
@@ -156,7 +164,7 @@ def read_database_contents(uplink: UplinkConnection, collection: str, database=N
 def list_missions(uplink: UplinkConnection):
     mission_list = uplink.get_mission_list()
     print("Available Missions w/ data")
-    for mission in mission_list:
+    for mission in mission_list.get("result", []):
         print(f'> {mission}')
 
 
@@ -165,7 +173,8 @@ def join_mission(uplink: UplinkConnection, mission: str):
 
 
 def check_auth(uplink: UplinkConnection):
-    uplink.get_key_authorization()
+    auth_status_string = uplink.get_key_authorization()
+    print(auth_status_string)
 
 
 def modify_auth(uplink: UplinkConnection, api_key: str, superuser=False, authorizing=True):
@@ -173,21 +182,41 @@ def modify_auth(uplink: UplinkConnection, api_key: str, superuser=False, authori
 
 
 def document_commands(uplink: UplinkConnection, output_filename: str):
+    """
+    Prints a markdown-formatted document containing the commands, metadata, and output from all the current mission's commands
+    """
     out_file = open(output_filename, "w")
     command_list = uplink.get_data(const.DEFAULT_COMMAND_COLLECTION)
-    for command_data in command_list:
+    for item_number, command_data in enumerate(command_list):
+        
+        # Print header
+        out_file.write(f"## Command number {item_number}\n\n")
+
+        
+        command = command_data.get("command")
+        out_file.write(f"COMMAND $> {command}\n\n")
+        
+        working_dir = command_data.get("current_working_directory")
+        out_file.write(f"Working Directory: {working_dir}\n\n")
+
+        host = command_data.get("executed_on_host")
+        out_file.write(f"Executed on Host: {host}\n\n")
+
+        ipaddr = command_data.get("executed_on_ipaddr")
+        out_file.write(f"Executed on IP: {ipaddr}\n\n")
+
         start_time_float = command_data.get("execution_time_start")
         start_time = time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(start_time_float))
+        out_file.write(f"Command Started at: {start_time}\n\n")
+
         end_time_float = command_data.get("execution_time_end")
         end_time = time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(end_time_float))
-        host = command_data.get("executed_on_host")
-        command = command_data.get("command")
-        output = command_data.get("command_output")
+        out_file.write(f"Command Finished at: {end_time}\n\n")
 
-        out_file.write(f"RADAR COMMAND EXECUTION $> {command}\n")
-        out_file.write(f"Executed on Host: {host}\n")
-        out_file.write(f"Command Started at: {start_time}\n")
-        out_file.write(f"Command Finished at: {end_time}\n")
+        return_code = command_data.get("command_return_code")
+        out_file.write(f"Command returned exit code: {return_code}\n\n")
+        
+        output = command_data.get("command_output")
         out_file.write("OUTPUT:\n")
         out_file.write("```\n")
         for line in output.split("\n")[:-1]:

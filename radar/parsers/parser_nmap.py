@@ -53,12 +53,11 @@ def run(command: SystemCommand):
                 if service:
                     info['service'] = service
                 version = matches.group('version')
-                if service:
+                if version:
                     info['version'] = version
                 target_list[len(target_list)-1]['services'].append(info)
 
             elif 'Network Distance' in line:
-                print("Processing distance")
                 hop_number = line.split(' ')[1]
                 target_list[len(target_list)-1]['details']['hop_distance'] = hop_number
 

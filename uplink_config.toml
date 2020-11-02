@@ -21,6 +21,9 @@ uplink_port = 1684
 # logging level (https://docs.python.org/3/library/logging.html#levels)
 logging-level = 20
 
+[distributed]
+watch_interval = 5  # Seconds to wait if there was no command in queue before checking again
+
 [server]
 # hostname/ip
 host = "localhost"

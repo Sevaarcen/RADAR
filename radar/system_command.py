@@ -14,38 +14,55 @@
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
-import tempfile
 import subprocess
 import time
 import socket
+import sys
+import os
 
 
 class SystemCommand:
 
-    def __init__(self, command: str):
+    def __init__(self, command: str, additional_meta=None):
         self.command = command
-        self.command_output = None
+        self.stdout = ""
+        self.stderr = ""
+        self.command_output = ""
         self.execution_time_start = None
         self.execution_time_end = None
         self.executed_on_host = socket.getfqdn()
+        self.executed_on_ipaddr = socket.gethostbyname(self.executed_on_host)
+        self.current_working_directory = os.getcwd()
+        if additional_meta:
+            self.additional_meta = additional_meta
 
     def to_json(self):
         return self.__dict__
 
-    def run(self) -> bool:
+    def run(self, silent=False):
         result = True
         self.execution_time_start = time.time()
-        # Prepare temporary file to store command output
-        temp_output_file = tempfile.NamedTemporaryFile(prefix='tmp', suffix='.out', delete=True)
         try:
-            # Run a command and pipe stdout and stderr to the temp file
-            subprocess.run(self.command, shell=True, stdout=temp_output_file, stderr=temp_output_file)
-
-            temp_output_file.seek(0)  # Set head at start of file
-            contents = temp_output_file.read().decode("utf-8")  # Read contents and decode as text
-            temp_output_file.close()  # Then close the file (and delete it)
-            self.command_output = contents
+            # Run a command and attach stdin to subprocess to allow user interaction
+            # Create pipes for stdout and stderr so we can process them manually
+            subproc = subprocess.Popen(self.command, shell=True, stdin=sys.stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            # While process is running, stream output to console and relevant variables
+            
+            while subproc.poll() == None:
+                for stdout_line in subproc.stdout:
+                    self.stdout += stdout_line
+                    self.command_output += stdout_line
+                    if not silent:
+                        yield stdout_line.strip()
+                for stderr_line in subproc.stderr:
+                    self.stderr += stderr_line
+                    self.command_output += stderr_line
+                    if not silent:
+                        yield stderr_line.strip()
+            # Record final variables
+            self.command_return_code = subproc.wait()
             self.execution_time_end = time.time()
+        # In case user cancelled w/ Ctrl + C or similar
         except (KeyboardInterrupt, UnboundLocalError):
             print("!!!  Command cancelled by key interrupt")
             result = False

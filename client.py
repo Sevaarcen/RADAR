@@ -27,13 +27,19 @@ from radar.automation_managers import CommandParserManager, PlaybookManager
 
 def main(raw_command: str):
     print('============ EXECUTING COMMAND ============', file=sys.stderr)
-    system_command = SystemCommand(raw_command)
-    completed = system_command.run()
-    if not completed:
-        print("!!!  Command didn't finish executing", file=sys.stderr)
-        exit(1)
-    print(system_command.command_output, end='')
-
+    system_command = SystemCommand(raw_command, additional_meta={"run-mode": "manual"})
+    # For each yielded value, print it or use it as a control message
+    for output_value in system_command.run():
+        if isinstance(output_value, str):
+            print(output_value)
+        else:  # Is bool = end of command and is the result
+            if not output_value:
+                print("!!!  Command didn't finish executing", file=sys.stderr)
+                exit(1)
+            if system_command.command_return_code != 0:
+                print(f"!#!  Command returned a non-0 return code ({system_command.command_return_code})")
+                
+            # Else it was sucessful and we can just continue
     print('========== PARSING COMMAND OUTPUT =========', file=sys.stderr)
     parser_manager = CommandParserManager()
     command_json = system_command.to_json()

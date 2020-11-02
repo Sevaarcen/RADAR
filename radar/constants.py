@@ -23,7 +23,7 @@ SERVER_CONFIG = "server_config.toml"
 MISSION_PREFIX = "mission-"
 DEFAULT_MISSION = "default"
 DEFAULT_COMMAND_COLLECTION = 'raw-commands'
-DEFAULT_METADATA_COLLECTION = 'command_metadata'
+DEFAULT_METADATA_COLLECTION = 'command-metadata'
 DEFAULT_TARGET_COLLECTION = 'targets'
 
 # Databases which the API shouldn't access
@@ -36,6 +36,9 @@ PROTECTED_DATABASES = [
 RESTRICTED_DATABASES = [
     'radar-control'
 ]
+
+# Uplink <--> client settings for communication optimization
+LOCAL_COMM_ADDR = "127.0.0.1"
 
 # For Uplink safety
 UPLINK_API_KEY_FILENAME = "uplink_api_key.txt"
