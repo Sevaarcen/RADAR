@@ -300,7 +300,7 @@ def is_authorized(superuser_permissions=False):
     from_address = request.remote_addr
     global stdout
     if from_address == '127.0.0.1':
-        stdout.write('###  Authorization skipped, permission automatically granted for localhost')
+        stdout.write('###  Authorization skipped, permission automatically granted for localhost\n')
         stdout.flush()
         return True
     # Grab registered client info from database
@@ -427,7 +427,7 @@ def start(use_stdout=sys.stdout, use_stderr=sys.stderr, config_filepath=None, dr
         if not config_filepath:
             import pkg_resources
             config_filepath = pkg_resources.resource_filename(const.PACKAGE_NAME, const.SERVER_CONFIG)
-            stderr.write(f"###  User didn't specify config, falling back to default at: '{config_filepath}'")
+            stderr.write(f"###  User didn't specify config, falling back to default at: '{config_filepath}'\n")
         server_config = toml.load(config_filepath)
     except FileNotFoundError:
         stderr.write(f"!!!  Could not find configuration file {config_filepath}, server will shut down\n")

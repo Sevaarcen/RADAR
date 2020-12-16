@@ -16,6 +16,7 @@
 
 uplink_port = 1684
 
-[rules]
-parser_rules = "parsing_rules.yara"
-playbook_rules = "playbook_rules.yara"
+# if rules are at a non-default location, change it below
+#[rules]
+#parser_rules = "parsing_rules.yara"
+#playbook_rules = "playbook_rules.yara"

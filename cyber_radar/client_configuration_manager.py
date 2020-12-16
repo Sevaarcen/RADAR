@@ -14,26 +14,17 @@
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
-import cyber_radar.constants as const
+import pkg_resources
 import toml
+
+import cyber_radar.constants as const
 
 
 def verify_config(config: dict) -> bool:
-    critical_error = False
-    rules = config.get("rules", None)
-    if not rules:
-        print("!!!  Client configuration file is missing 'rules' section")
-        critical_error = True
-    else:
-        parser_rules = rules.get("parser_rules", None)
-        if not parser_rules:
-            print("!!!  Client configuration missing 'parser_rules' in 'rules' section")
-            critical_error = True
-        playbook_rules = rules.get("playbook_rules", None)
-        if not playbook_rules:
-            print("!!!  Client configuration missing 'playbook_rules' in 'rules' section")
-            critical_error = True
-    return not critical_error
+    # get value or set to default filepath if not valid
+    rules = config.setdefault("rules", {})
+    rules.setdefault("parser_rules", pkg_resources.resource_filename(__name__, const.PARSER_RULES))
+    rules.setdefault("playbook_rules", pkg_resources.resource_filename(__name__, const.PLAYBOOK_RULES))
 
 
 class ClientConfigurationManager:
@@ -42,6 +33,7 @@ class ClientConfigurationManager:
             self.config_path = config_path
             try:
                 self.config = toml.load(self.config_path)
+                verify_config(self.config)
             except FileNotFoundError:
                 print(f"!!!  Could not find configuration file: {config_path}")
                 exit(1)

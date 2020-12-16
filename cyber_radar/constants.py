@@ -22,6 +22,10 @@ CLIENT_CONFIG = "config/client_config.toml"
 UPLINK_CONFIG = "config/uplink_config.toml"
 SERVER_CONFIG = "config/server_config.toml"
 
+# default rule filepaths
+PARSER_RULES = "rules/parsing_rules.yara"
+PLAYBOOK_RULES = "rules/playbook_rules.yara"
+
 # For client/server database controls
 MISSION_PREFIX = "mission-"
 DEFAULT_MISSION = "default"

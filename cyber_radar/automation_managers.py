@@ -15,6 +15,9 @@
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 import yara
 import importlib
+
+import cyber_radar.constants as const
+
 from cyber_radar.system_command import SystemCommand
 from cyber_radar.client_configuration_manager import ClientConfigurationManager
 
@@ -25,7 +28,11 @@ class CommandParserManager:
         client_config_manager = ClientConfigurationManager()
         client_config = client_config_manager.config
         self.rule_path = client_config['rules']['parser_rules']
-        self.rules = yara.compile(self.rule_path)
+        try:
+            self.rules = yara.compile(self.rule_path)
+        except yara.Error:
+            print(f"!!!  Could not load parsing rules with file path: '{self.rule_path}'")
+            exit(1)
 
         self.current_command = None
         self.metadata_results_buffer = None
@@ -37,7 +44,7 @@ class CommandParserManager:
             if not module_to_load:
                 print(f'!!!  No parser module specified for parser rule {match_data.get("rule")}')
             else:
-                parser_module = importlib.import_module(f'radar.parsers.{module_to_load}')
+                parser_module = importlib.import_module(f'{const.PACKAGE_NAME}.parsers.{module_to_load}')
                 metadata, target_data = parser_module.run(self.current_command)
                 self.metadata_results_buffer.update({parser_module.MODULE_NAME: metadata})
                 self.target_results_buffer += target_data
@@ -90,7 +97,11 @@ class PlaybookManager:
         client_config_manager = ClientConfigurationManager()
         client_config = client_config_manager.config
         self.rule_path = client_config['rules']['playbook_rules']
-        self.rules = yara.compile(self.rule_path)
+        try:
+            self.rules = yara.compile(self.rule_path)
+        except yara.Error:
+            print(f"!!!  Could not load playbook rules with file path: '{self.rule_path}'")
+            exit(1)
 
         self.current_target_dict = None
         self.current_skip_list = None
@@ -102,7 +113,7 @@ class PlaybookManager:
             if not module_to_load:
                 print(f'!!!  No playbook specified for playbook rule {match_data.get("rule")}')
             elif module_to_load not in self.current_skip_list:
-                playbook_module = importlib.import_module(f'radar.playbooks.{module_to_load}')
+                playbook_module = importlib.import_module(f'{const.PACKAGE_NAME}.playbooks.{module_to_load}')
                 results = playbook_module.run(self.current_target_dict)
                 if results and not self.current_silent:
                     print(results)
