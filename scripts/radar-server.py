@@ -18,13 +18,6 @@
 #!/usr/bin/python
 
 import os
-from typing import MutableMapping
-
-from flask import Flask, request, jsonify
-from pymongo import MongoClient
-from pymongo.errors import ServerSelectionTimeoutError
-import radar.constants as const
-import bson.json_util
 import argparse
 import toml
 import json
@@ -34,13 +27,21 @@ import sys
 import logging
 import time
 import secrets
+import bson.json_util
+
+from typing import MutableMapping
+from flask import Flask, request, jsonify
+from pymongo import MongoClient
+from pymongo.errors import ServerSelectionTimeoutError
+
+import cyber_radar.constants as const
+
 
 # Hook the server into Flask
 app = Flask(__name__)
 
 # Global variables
 database_client = None
-config_filepath = "server_config.toml"
 distributed_command_queue = []
 stdout = None
 stderr = None
@@ -299,7 +300,7 @@ def is_authorized(superuser_permissions=False):
     from_address = request.remote_addr
     global stdout
     if from_address == '127.0.0.1':
-        stdout.write('###  Authorization skipped, permission automatically granted for localhost')
+        stdout.write('###  Authorization skipped, permission automatically granted for localhost\n')
         stdout.flush()
         return True
     # Grab registered client info from database
@@ -405,7 +406,7 @@ def verify_config(config: MutableMapping) -> bool:
     return not critical_error
 
 
-def start(use_stdout=sys.stdout, use_stderr=sys.stderr, dry_run=False):
+def start(use_stdout=sys.stdout, use_stderr=sys.stderr, config_filepath=None, dry_run=False):
     """ This internal method is used to start the Flask web server and connect to the backend Mongo database.
     :param use_stdout: A stream to use for stdout instead of sys.stdout
     :param use_stderr: A stream to use for stderr instead of sys.stderr
@@ -422,8 +423,11 @@ def start(use_stdout=sys.stdout, use_stderr=sys.stderr, dry_run=False):
     stdout_handler = logging.StreamHandler(stdout)
     flask_logger.addHandler(stdout_handler)
 
-    global config_filepath
     try:
+        if not config_filepath:
+            import pkg_resources
+            config_filepath = pkg_resources.resource_filename(const.PACKAGE_NAME, const.SERVER_CONFIG)
+            stderr.write(f"###  User didn't specify config, falling back to default at: '{config_filepath}'\n")
         server_config = toml.load(config_filepath)
     except FileNotFoundError:
         stderr.write(f"!!!  Could not find configuration file {config_filepath}, server will shut down\n")
@@ -502,10 +506,7 @@ if __name__ == '__main__':
                         '--config',
                         dest='config_path',
                         type=str,
-                        default=const.SERVER_CONFIG,
                         help="Specify non-default configuration file to use")
     arguments = parser.parse_args()
 
-    config_filepath = arguments.config_path  # Override if manually specified
-
-    start()
+    start(config_filepath=arguments.config_path)

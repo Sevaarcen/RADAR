@@ -15,14 +15,12 @@
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
-#!/usr/bin/python
-
 import sys
 
-import radar.constants as const
-from radar.client_uplink_connection import UplinkConnection
-from radar.system_command import SystemCommand
-from radar.automation_managers import CommandParserManager, PlaybookManager
+import cyber_radar.constants as const
+from cyber_radar.client_uplink_connection import UplinkConnection
+from cyber_radar.system_command import SystemCommand
+from cyber_radar.automation_managers import CommandParserManager, PlaybookManager
 
 
 def main(raw_command: str):

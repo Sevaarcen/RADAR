@@ -14,10 +14,17 @@
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
+# package info / distribution-related stuff
+PACKAGE_NAME = "cyber_radar"
+
 # Config files
-CLIENT_CONFIG = "client_config.toml"
-UPLINK_CONFIG = "uplink_config.toml"
-SERVER_CONFIG = "server_config.toml"
+CLIENT_CONFIG = "config/client_config.toml"
+UPLINK_CONFIG = "config/uplink_config.toml"
+SERVER_CONFIG = "config/server_config.toml"
+
+# default rule filepaths
+PARSER_RULES = "rules/parsing_rules.yara"
+PLAYBOOK_RULES = "rules/playbook_rules.yara"
 
 # For client/server database controls
 MISSION_PREFIX = "mission-"

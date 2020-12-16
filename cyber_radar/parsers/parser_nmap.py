@@ -13,7 +13,7 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
-from radar.system_command import SystemCommand
+from cyber_radar.system_command import SystemCommand
 import re
 
 MODULE_NAME = "PARSE_NMAP"

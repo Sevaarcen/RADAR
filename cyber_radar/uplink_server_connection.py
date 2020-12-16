@@ -23,7 +23,7 @@ import requests
 import logging
 from requests.exceptions import ConnectionError, SSLError
 
-import radar.constants as const
+import cyber_radar.constants as const
 
 
 class ServerConnection:

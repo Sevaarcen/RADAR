@@ -1,7 +1,6 @@
-toml
-yara-python
-netaddr
-bson==0.5.8
+toml==0.10.2
+yara-python==4.0.2
+netaddr==0.8.0
 certifi==2019.9.11
 chardet==3.0.4
 Click==7.0

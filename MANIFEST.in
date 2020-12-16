@@ -1,0 +1,5 @@
+include cyber_radar/config/*
+include cyber_radar/rules/*
+include LICENSE
+include README.md
+include USER\ GUIDE.md

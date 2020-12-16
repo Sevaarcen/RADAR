@@ -14,8 +14,20 @@
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
-uplink_port = 1684
+from ftplib import FTP
 
-[rules]
-parser_rules = "parsing_rules.yara"
-playbook_rules = "playbook_rules.yara"
+
+def run(target: dict):
+    target_host = target.get('target_host', None)
+    if not target_host:
+        return f'!!!  FTP directory listing failed, no target_host specified: {target}'
+    ftp_connection = FTP(target_host)
+    ftp_connection.login()
+    files = ftp_connection.nlst()
+
+    # Add info to metadata
+    if not target.get('details', None):
+        target['details'] = {}
+    target['details']['ftp_server_contents'] = files
+    return f'$$$  These files/directories were on the anonymous FTP server: {files}'
+
