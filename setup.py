@@ -17,6 +17,10 @@
 import setuptools
 
 
+#===============================================================================
+#  Read detailed info from files where relevant to better build egg
+#===============================================================================
+
 with open("README.md", "r", encoding="utf-8") as readme_fh:
     long_description = readme_fh.read()
 
@@ -24,28 +28,27 @@ with open("requirements.txt", "r", encoding="utf-8") as requirements_fh:
     required_packages = requirements_fh.read().splitlines()
 
 
-# executable scripts to install
+#===============================================================================
+#  List of executable scripts to install so they are in $PATH
+#===============================================================================
+
 scripts = [
     "scripts/radar.py",
     "scripts/radar-ctl.py",
     "scripts/radar-uplink.py",
-    "scripts/radar-server.py",
+    "scripts/radar-server.py"
 ]
 
-# extra non-package files that should be installed w/ package
-data_files = [
-    "config/client_config.toml",
-    "config/uplink_config.toml",
-    "config/server_config.toml",
-    "LICENSE",
-    "README.md",
-    "USER GUIDE.md",
-]
+
+#===============================================================================
+#  Build egg below
+#===============================================================================
 
 setuptools.setup(
     name="cyber-radar",
-    version="0.1.1",
+    version="0.2.0",
     author="Cole Daubenspeck",
+    author_email="coleipod@gmail.com",
     description="A framework to support a Red-team Analysis, Documentation, and Automation Revolution!",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -53,7 +56,7 @@ setuptools.setup(
     url="https://github.com/sevaarcen/RADAR",
     packages=setuptools.find_packages(),
     scripts=scripts,
-    data_files=data_files,
+    include_package_data=True,
     # tags and stuff for project
     classifiers=[
         "Programming Language :: Python :: 3",

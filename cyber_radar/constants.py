@@ -14,6 +14,9 @@
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
+# package info / distribution-related stuff
+PACKAGE_NAME = "cyber_radar"
+
 # Config files
 CLIENT_CONFIG = "config/client_config.toml"
 UPLINK_CONFIG = "config/uplink_config.toml"

@@ -265,8 +265,9 @@ def main():
     try:
         config_path = arguments.config_path
         if not config_path:
-            from pkg_resources import resource_filename, Requirement
-            config_path = resource_filename(Requirement.parse("cyber_radar"), const.UPLINK_CONFIG)
+            import pkg_resources
+            config_path = pkg_resources.resource_filename(const.PACKAGE_NAME, const.UPLINK_CONFIG)
+            logger.info(f"###  User didn't specify config, falling back to default at: '{config_path}'")
         config = toml.load(config_path)
     except FileNotFoundError:
         logger.error(f"Could not find configuration file: {arguments.config_path}")

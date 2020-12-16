@@ -425,8 +425,9 @@ def start(use_stdout=sys.stdout, use_stderr=sys.stderr, config_filepath=None, dr
 
     try:
         if not config_filepath:
-            from pkg_resources import resource_filename, Requirement
-            config_filepath = resource_filename(Requirement.parse("cyber_radar"), const.SERVER_CONFIG)
+            import pkg_resources
+            config_filepath = pkg_resources.resource_filename(const.PACKAGE_NAME, const.SERVER_CONFIG)
+            stderr.write(f"###  User didn't specify config, falling back to default at: '{config_filepath}'")
         server_config = toml.load(config_filepath)
     except FileNotFoundError:
         stderr.write(f"!!!  Could not find configuration file {config_filepath}, server will shut down\n")

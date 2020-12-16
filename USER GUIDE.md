@@ -3,6 +3,40 @@
 Once you have RADAR on your central host, the first step is to setup the RADAR control server where clients connect and send data.
 
 
+## Connection Diagram
+Below is a diagram showing how each component of RADAR is connected.
+
+1. Provide your own Mongo database to host the data. This can be a container, or a bare-metal database. Follow installation instructions for your operating system and preference. Set this up prior to configuring RADAR.
+2. The next componenet is the "RADAR Control Server" (`radar-server.py`). This is the central server that brokers data and distributes work to connected machines. This server is configured to connect to the database and accept connections from the uplinks.
+3. Each host that clients will use will then host a RADAR Uplink Server (`radar-uplink.py`). This server is used to buffer data and communicate with the Control Server to improve client performance. This server allows distributed jobs to run in the background.
+4. Users interact with RADAR through the clients. `radar.py` is used for running system commands via RADAR, and `radar-ctl.py` is used to interact with RADAR's control functions. The client runs until completion and relies on the Uplink to sync the data afterwards.
+```
+
+                                                                          +----------------------------+       +---------------------------+
+                                                                          |                            |       |                           |
+                                                                          |    RADAR Uplink Server     |       |       RADAR Clients       |
+                                                                 +--------+  (one per host w/ client)  +-------+ (radar.py / radar-ctl.py) |
+                                                                 |        |                            |       |                           |
+                                                                 |        +----------------------------+       +---------------------------+
+                                                                 |
+ +---------------------------+                                   |
+ |                           |       +----------------------+    |        +----------------------------+       +---------------------------+
+ |                           |       |                      |    |        |                            |       |                           |
+ |      Mongo Database       |       |                      |    |        |    RADAR Uplink Server     |       |       RADAR Clients       |
+ |   (external dependency)   +-------+ RADAR Control Server +-------------+  (one per host w/ client)  +-------+ (radar.py / radar-ctl.py) |
+ |  (set this up beforehand) |       |                      |    |        |                            |       |                           |
+ |                           |       |                      |    |        +----------------------------+       +---------------------------+
+ |                           |       +----------------------+    |
+ +---------------------------+                                   |
+                                                                 |        +----------------------------+       +---------------------------+
+                                                                 |        |                            |       |                           |
+                                                                 +--------+    RADAR Uplink Server     +-------+       RADAR Clients       |
+                                                                          |  (one per host w/ client)  |       | (radar.py / radar-ctl.py) |
+                                                                          |                            |       |                           |
+                                                                          +----------------------------+       +---------------------------+
+
+
+```
 ## First Steps
 
 1. Clone this repository on your computer. For all my examples, I am using either CentOS 8 or Fedora 31.

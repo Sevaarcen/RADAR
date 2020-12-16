@@ -52,8 +52,8 @@ class ClientConfigurationManager:
         if not ClientConfigurationManager.instance:
             if not config_path:
                 # get default config file based on package install location
-                from pkg_resources import resource_filename, Requirement
-                config_path = resource_filename(Requirement.parse("cyber_radar"), const.CLIENT_CONFIG)
+                import pkg_resources
+                config_path = pkg_resources.resource_filename(const.PACKAGE_NAME, const.CLIENT_CONFIG)
             ClientConfigurationManager.instance = ClientConfigurationManager.__ClientConfigurationManager(config_path)
         return ClientConfigurationManager.instance
 
