@@ -14,24 +14,23 @@
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
-# How often the uplink should check to see if data needs to be synced
-sync_interval = 10
-uplink_port = 1684
+from ftplib import FTP, error_perm
 
-# logging level (https://docs.python.org/3/library/logging.html#levels)
-logging-level = 20
 
-[distributed]
-watch_interval = 60  # Seconds to wait if there was no command in queue before checking again
+def run(target: dict):
+    target_host = target.get('target_host', None)
+    if not target_host:
+        return f'!!!  Scan Anonymous FTP failed, no target_host specified: {target}'
+    try:
+        ftp_connection = FTP(target_host)
+        ftp_connection.login()  # Login anonymous
 
-[server]
-# hostname/ip
-host = "localhost"
-# port (default 1794)
-port = 1794
-# Use https instead of http
-use-https = true
-# Do not blindly trust RADAR Control Server's SSL certificate
-verify-host = true
-# Non-system CA certificate used to verify RADAR Control Server's SSL certificate
-CA-certificate = "rootCA.pem"
+        target_vulns = target.get('vulnerabilities', None)
+        if target_vulns:
+            target_vulns.append('Anonymous FTP Login')
+        else:
+            target['vulnerabilities'] = ['Anonymous FTP Login']
+
+        return f'$$$  {target_host} is vulnerable to Anonymous FTP Login'
+    except (ConnectionRefusedError, error_perm):
+        return

@@ -15,9 +15,9 @@
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
 # Config files
-CLIENT_CONFIG = "client_config.toml"
-UPLINK_CONFIG = "uplink_config.toml"
-SERVER_CONFIG = "server_config.toml"
+CLIENT_CONFIG = "config/client_config.toml"
+UPLINK_CONFIG = "config/uplink_config.toml"
+SERVER_CONFIG = "config/server_config.toml"
 
 # For client/server database controls
 MISSION_PREFIX = "mission-"

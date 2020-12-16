@@ -22,8 +22,8 @@ import time
 import netaddr
 import re
 
-from radar.client_uplink_connection import UplinkConnection
-import radar.constants as const
+from cyber_radar.client_uplink_connection import UplinkConnection
+import cyber_radar.constants as const
 
 
 def get_info(uplink: UplinkConnection):
@@ -138,7 +138,6 @@ def run_playbook(uplink: UplinkConnection, playbook: str, target: str, args: str
 
 def list_database_structure(uplink: UplinkConnection):
     structure = uplink.get_database_structure()
-    print(type(structure))
     for database_name, collection_list in structure.items():
         if database_name in const.PROTECTED_DATABASES:
             print(f'! {database_name}')

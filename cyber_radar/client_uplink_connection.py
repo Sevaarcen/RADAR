@@ -16,13 +16,11 @@
 import requests
 import re
 
-from jsonrpcclient import request
-from jsonrpcclient.exceptions import ReceivedNon2xxResponseError
 from requests.exceptions import ConnectionError
 
-import radar.constants as const
+import cyber_radar.constants as const
 
-from radar.client_configuration_manager import ClientConfigurationManager
+from cyber_radar.client_configuration_manager import ClientConfigurationManager
 
 
 class UplinkConnection:

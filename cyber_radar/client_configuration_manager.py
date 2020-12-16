@@ -14,6 +14,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
+import cyber_radar.constants as const
 import toml
 
 
@@ -47,8 +48,12 @@ class ClientConfigurationManager:
 
     instance = None
 
-    def __new__(cls, config_path="client_config.toml"):
+    def __new__(cls, config_path=None):
         if not ClientConfigurationManager.instance:
+            if not config_path:
+                # get default config file based on package install location
+                from pkg_resources import resource_filename, Requirement
+                config_path = resource_filename(Requirement.parse("cyber_radar"), const.CLIENT_CONFIG)
             ClientConfigurationManager.instance = ClientConfigurationManager.__ClientConfigurationManager(config_path)
         return ClientConfigurationManager.instance
 

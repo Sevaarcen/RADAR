@@ -18,9 +18,10 @@
 listen_address = "0.0.0.0"
 port = 1794
 
-[certificates]
-public_key = "server.crt"
-private_key = "server.key"
+# Uncomment out below and include path to public and private keys if you want to run HTTPS endpoints (recommended for non-dev use)
+#[certificates]
+#public_key = "server.crt"
+#private_key = "server.key"
 
 [database]
 host = "localhost"

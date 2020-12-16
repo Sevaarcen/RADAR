@@ -16,12 +16,12 @@
 import threading
 import time
 
-import radar.constants as const
+import cyber_radar.constants as const
 
-from radar.system_command import SystemCommand
-from radar.uplink_server_connection import ServerConnection
-from radar.automation_managers import CommandParserManager, PlaybookManager
-from radar.client_configuration_manager import ClientConfigurationManager
+from cyber_radar.system_command import SystemCommand
+from cyber_radar.uplink_server_connection import ServerConnection
+from cyber_radar.automation_managers import CommandParserManager, PlaybookManager
+from cyber_radar.client_configuration_manager import ClientConfigurationManager
 
 
 class DistributedWatcher:

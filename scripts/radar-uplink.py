@@ -16,7 +16,6 @@
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
-
 import logging
 import time
 import sys
@@ -28,9 +27,9 @@ import atexit
 from multiprocessing import Process, Manager
 from flask import Flask, request, Response
 
-import radar.constants as const
-from radar.distributed import DistributedWatcher
-from radar.uplink_server_connection import ServerConnection
+import cyber_radar.constants as const
+from cyber_radar.distributed import DistributedWatcher
+from cyber_radar.uplink_server_connection import ServerConnection
 
 
 # Global variables
@@ -254,7 +253,6 @@ def main():
                         '--config',
                         dest='config_path',
                         type=str,
-                        default=const.UPLINK_CONFIG,
                         help="Specify non-default configuration file to use")
     arguments = parser.parse_args()
 
@@ -265,7 +263,11 @@ def main():
     atexit.register(write_queue_file, send_queue)
 
     try:
-        config = toml.load(arguments.config_path)
+        config_path = arguments.config_path
+        if not config_path:
+            from pkg_resources import resource_filename, Requirement
+            config_path = resource_filename(Requirement.parse("cyber_radar"), const.UPLINK_CONFIG)
+        config = toml.load(config_path)
     except FileNotFoundError:
         logger.error(f"Could not find configuration file: {arguments.config_path}")
         exit(1)

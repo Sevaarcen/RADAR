@@ -15,8 +15,8 @@
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 import yara
 import importlib
-from radar.system_command import SystemCommand
-from radar.client_configuration_manager import ClientConfigurationManager
+from cyber_radar.system_command import SystemCommand
+from cyber_radar.client_configuration_manager import ClientConfigurationManager
 
 
 class CommandParserManager:
@@ -126,8 +126,4 @@ class PlaybookManager:
                 continue
             # Pull out variables so it's easier to reference
             self.flat_current_target_data_string = _flatten_to_string(target)
-            if 'target_host' not in self.flat_current_target_data_string or 'services' not in self.flat_current_target_data_string:
-                print("!!!  Invalid target format, it doesn't conform to the specifications. Skipping...")
-                print(target)
-                continue
             self.rules.match(data=self.flat_current_target_data_string, callback=self.yara_callback, which_callbacks=yara.CALLBACK_MATCHES)

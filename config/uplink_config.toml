@@ -13,20 +13,25 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
-from ftplib import FTP
 
+# How often the uplink should check to see if data needs to be synced
+sync_interval = 10
+uplink_port = 1684
 
-def run(target: dict):
-    target_host = target.get('target_host', None)
-    if not target_host:
-        return f'!!!  FTP directory listing failed, no target_host specified: {target}'
-    ftp_connection = FTP(target_host)
-    ftp_connection.login()
-    files = ftp_connection.nlst()
+# logging level (https://docs.python.org/3/library/logging.html#levels)
+logging-level = 20
 
-    # Add info to metadata
-    if not target.get('details', None):
-        target['details'] = {}
-    target['details']['ftp_server_contents'] = files
-    return f'$$$  These files/directories were on the anonymous FTP server: {files}'
+[distributed]
+watch_interval = 60  # Seconds to wait if there was no command in queue before checking again
 
+[server]
+# hostname/ip
+host = "localhost"
+# port (default 1794)
+port = 1794
+# Use https instead of http (make sure server is running HTTPS if you enable this)
+use-https = false
+# Do not blindly trust RADAR Control Server's SSL certificate
+verify-host = true
+# Non-system CA certificate used to verify RADAR Control Server's SSL certificate
+CA-certificate = "rootCA.pem"
