@@ -13,10 +13,13 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
-from cyber_radar.system_command import SystemCommand
+
+import time
 import re
 
-MODULE_NAME = "PARSE_NMAP"
+import cyber_radar.helpers.target_prioritizer as target_prioritizer
+
+from cyber_radar.system_command import SystemCommand
 
 
 def run(command: SystemCommand):
@@ -86,4 +89,16 @@ def run(command: SystemCommand):
         except IndexError as ie:
             print(f"!!! Error parsing NMAP, index error: {ie}")
             continue
+
+    # Use target prioritizer helper module to get high-level info about type of device and expected value
+    for target in target_list:
+        host_value, host_type = target_prioritizer.get_info(target)
+        target.setdefault('details', {}).update({
+            "value": host_value,
+            "host_type": host_type
+        })
+    # and finally... insert current timestamp for when data was parsed
+    for target in target_list:
+        target.setdefault('details', {})["scan_time"] = int(time.time())
+    # Return parsing results and list of valid targets
     return parse_results, target_list

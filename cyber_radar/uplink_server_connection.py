@@ -21,6 +21,7 @@ import time
 import os
 import requests
 import logging
+
 from requests.exceptions import ConnectionError, SSLError
 
 import cyber_radar.constants as const
@@ -29,8 +30,8 @@ import cyber_radar.constants as const
 class ServerConnection:
 
     def __init__(self, logger: logging, config: dict):
-        print("A NEW SERVER UPLINK CONNECTION HAS BEEN MADE")
         self.logger = logger
+        self.logger.info("A NEW SERVER UPLINK CONNECTION HAS BEEN MADE")
         self.logger.debug("Starting initialize of connection") #TODO
         self.config = config
 
@@ -196,6 +197,28 @@ class ServerConnection:
             self.logger.debug(data)
             return False
 
+    def bulk_send_data(self, data: dict):
+        """ For any number of documents, send to RADAR Control Server for insertion into the database.
+
+        Args:
+            data (dict): dict where keys are DB names, values are dicts containing collection names as keys and document list as values.
+
+        Returns:
+            str: None on error else message of result
+        """
+        self.logger.debug("Sending bulk data to RADAR Control Server")
+        full_request_url = f"{self.server_url}/database/bulk-insert"
+        auth_cookie = {'key': self.api_key}
+        req = requests.post(full_request_url, json=data, cookies=auth_cookie, verify=self._verify_host)
+        if req.status_code != 200:
+            self.logger.error(f"HTTP Code received while bulk inserting database contents: {req.status_code}")
+            response = req.text
+            self.logger.debug(response)
+            return False
+        else:
+            response = req.text
+            return response
+
     def get_database_contents(self, database: str, collection: str):
         """ List the contents of one of the database collections from the server in JSON
         :param database: The full name of the database you want to view
@@ -213,14 +236,55 @@ class ServerConnection:
         else:
             response = req.json()
             return response
+    
+    def query_database(self, database: str, collection: str, filter: dict):
+        """List the contents of one of the database collections from the server in JSON using a given filter
+        :param database: The full name of the database you want to view
+        :param collection: The name of the collection you want to view from the current mission
+        :return: None
+        """
+        full_request_url = f'{self.server_url}/database/{database}/{collection}/list'
+        auth_cookie = {'key': self.api_key}
+        req = requests.post(full_request_url, json=filter, cookies=auth_cookie, verify=self._verify_host)
+        if req.status_code != 200:
+            self.logger.error(f"HTTP Code received while getting database contents: {req.status_code}")
+            response = req.text
+            self.logger.debug(response)
+            return None
+        else:
+            response = req.json()
+            return response
+    
+    def pop_shared_data(self, database: str, collection: str, filter: dict) -> dict:
+        """[summary]
+
+        Args:
+            database (str): Current mission
+            collection (str): Name of shared collection
+            filter (dict): What data to pop
+        
+        Returns:
+            dict of popped data
+        """
+        full_request_url = f'{self.server_url}/database/{database}/{collection}/pop'
+        auth_cookie = {'key': self.api_key}
+        req = requests.post(full_request_url, json=filter, cookies=auth_cookie, verify=self._verify_host)
+        if req.status_code != 200:
+            self.logger.error(f"HTTP Code received while popping shared collection contents: {req.status_code}")
+            response = req.text
+            self.logger.debug(response)
+            return {}
+        else:
+            response = req.json()
+            return response
+
 
     def send_distributed_commands(self, command_list):
         if not isinstance(command_list, list):
             self.logger.error(f'Cannot send distributed commands, it is not a list. It is a {type(command_list)} object')
         full_request_url = f'{self.server_url}/distributed/add'
-        encoded_command = base64.b64encode(json.dumps(command_list).encode())
         auth_cookie = {'key': self.api_key}
-        req = requests.post(full_request_url, cookies=auth_cookie, data=encoded_command, verify=self._verify_host)
+        req = requests.post(full_request_url, cookies=auth_cookie, json=command_list, verify=self._verify_host)
         if req.status_code != 200:
             self.logger.error(f"HTTP Code received while sending distributed commands: {req.status_code}")
             response = req.text
@@ -228,16 +292,19 @@ class ServerConnection:
         else:
             self.logger.info(f"{len(command_list)} new distributed commands added to queue")
 
-    def get_distributed_command(self):
+    def get_distributed_command(self) -> dict:
+        """ Returns a dict that contains the 'command' key with a system command to execute.
+        May contain additional fields with arbitrary metadata.
+        """
         full_request_url = f'{self.server_url}/distributed/get'
         auth_cookie = {'key': self.api_key}
         req = requests.get(full_request_url, cookies=auth_cookie, verify=self._verify_host)
         if req.status_code == 200:
-            self.logger.debug(f"Got command from distributed queue: {req.text}")
-            return req.text
+            self.logger.debug(f"Got command from distributed queue: {req.json()}")
+            return req.json()
         elif req.status_code == 304:
-            return None
+            return {} 
         else:
             self.logger.error(f"HTTP Code received while getting distributed command: {req.status_code}")
-            response = req.text
+            response = req.json()
             self.logger.debug(response)

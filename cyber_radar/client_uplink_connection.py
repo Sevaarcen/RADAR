@@ -123,7 +123,7 @@ class UplinkConnection:
             return False
         return req.json()
 
-    def send_data(self, collection, data):
+    def send_data(self, collection: str, data: dict):
         endpoint = "/database/data/send"
         parameters =  {
             "collection": collection
@@ -134,16 +134,32 @@ class UplinkConnection:
             return False
         return req.text
 
-    def get_data(self, collection, database=None):
-        endpoint = "/database/data/gather"
+    def get_data(self, collection: str, database: str = None, query_filter: dict = None) -> dict:
         parameters =  {
             "collection": collection,
             "database": database
         }
-        req = requests.get(f"{self.url}{endpoint}", params=parameters)
+        if not query_filter:
+            endpoint = "/database/data/gather"
+            req = requests.get(f"{self.url}{endpoint}", params=parameters)
+        else:
+            endpoint = "/database/data/query"
+            req = requests.post(f"{self.url}{endpoint}", params=parameters, json=query_filter)
         if not req.ok:
             print(f"!!!  Uplink returned a non 200 status code: {req.status_code} {req.reason}")
-            return False
+            return None
+        return req.json()
+    
+    def pop_share_data(self, query_filter: dict) -> dict:
+        parameters = {
+            "collection": const.DEFAULT_SHARE_COLLECTION
+        }
+        endpoint = ""
+        endpoint = "/database/data/pop"
+        req = requests.post(f"{self.url}{endpoint}", params=parameters, json=query_filter)
+        if not req.ok:
+            print(f"!!!  Uplink returned a non 200 status code: {req.status_code} {req.reason}")
+            return None
         return req.json()
 
     def send_distributed_commands(self, command: list):
@@ -151,5 +167,5 @@ class UplinkConnection:
         req = requests.post(f"{self.url}{endpoint}", json=command)
         if not req.ok:
             print(f"!!!  Uplink returned a non 200 status code: {req.status_code} {req.reason} -- {req.text}")
-            return False
+            return None
         return req.text

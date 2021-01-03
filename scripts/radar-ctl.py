@@ -16,14 +16,19 @@
 #  along with RADAR.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
+import pkgutil
 import importlib
 import json
 import time
 import netaddr
 import re
 
-from cyber_radar.client_uplink_connection import UplinkConnection
+import cyber_radar.playbooks
+import cyber_radar.commanders
+
 import cyber_radar.constants as const
+
+from cyber_radar.client_uplink_connection import UplinkConnection
 
 
 def get_info(uplink: UplinkConnection):
@@ -31,7 +36,7 @@ def get_info(uplink: UplinkConnection):
     print(info)
 
 
-def distribute_command(uplink: UplinkConnection, distrib_command: str):
+def distribute_command(uplink: UplinkConnection, distrib_command: str, extra_meta_args: list = []):
     syntax_pattern = '^(?P<targets>.+) ([iI][nN][tT][oO]) (?P<command>.*{}.*)$'
     parsed_command = re.search(syntax_pattern, distrib_command)
     
@@ -41,6 +46,16 @@ def distribute_command(uplink: UplinkConnection, distrib_command: str):
     if not parsed_command.group('command'):
         print("!!!  Missing distributed command with placeholder")
         exit(1)
+
+    additional_meta = {}
+    if extra_meta_args:
+        for arg in extra_meta_args:
+            key = arg.partition("=")[0]
+            value = arg.partition("=")[0]
+            if not key or not value:
+                print("!!! Error with meta arg, must be in the 'key=metadata' format")
+                exit(1)
+            additional_meta[key] = value
 
     unprocessed_target_list = parsed_command.group('targets').split(',')
     target_list = []
@@ -54,19 +69,14 @@ def distribute_command(uplink: UplinkConnection, distrib_command: str):
         print('!!!  Either targets or command is missing content and is blank')
         exit(1)
 
-    # IP Input patterns
-    ipaddr_rex = '^([0-9]{1,3}\.){3}[0-9]{1,3}$'
-    iprange_rex = '^([0-9]{1,3}\.){3}[0-9]{1,3} *\- *([0-9]{1,3}\.){3}[0-9]{1,3}$'
-    ipcidr_rex = '^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$'
-
     # tokenize each target in target_list
     print("###  Verifying targets")
     for target in target_list:
-        if re.match(ipaddr_rex, target):
+        if re.match(const.IPADDR_REX, target):
             print(f"  {target} is an IP address")
-        elif re.match(iprange_rex, target):
+        elif re.match(const.IPRANGE_REX, target):
             print(f"  {target} is an IP range")
-        elif re.match(ipcidr_rex, target):
+        elif re.match(const.IPCIDR_REX, target):
             print(f"  {target} is an CIDR network")
         else:
             print(f"  {target} is a hostname, URL, or other non-IP address target")
@@ -79,15 +89,21 @@ def distribute_command(uplink: UplinkConnection, distrib_command: str):
     all_targets = []
     for target in target_list:
         try:
-            if re.match(ipaddr_rex, target):
+            if re.match(const.IPADDR_REX, target):
                 host_ip = netaddr.IPAddress(target)
                 all_targets.append(str(host_ip))
-            elif re.match(iprange_rex, target):
+            elif re.match(const.IPRANGE_REX, target):
                 range_start_end = [ip.strip() for ip in target.split('-')]
-                iprange = netaddr.IPRange(range_start_end[0], range_start_end[1])
+                range_start = range_start_end[0]
+                range_end = range_start_end[1]
+                # check if end range is relative and we need to figure out start
+                if range_start.count(".") > range_end.count("."):
+                    relative_range_start = range_start.rsplit(".", range_end.count(".")+1)[0]
+                    range_end = f"{relative_range_start}.{range_end}"
+                iprange = netaddr.IPRange(range_start, range_end)
                 for host_ip in iprange:
                     all_targets.append(str(host_ip))
-            elif re.match(ipcidr_rex, target):
+            elif re.match(const.IPCIDR_REX, target):
                 cidr = netaddr.IPNetwork(target)
                 for host_ip in cidr.iter_hosts():
                     all_targets.append(str(host_ip))
@@ -101,12 +117,18 @@ def distribute_command(uplink: UplinkConnection, distrib_command: str):
 
     print(f"$$$  A total of {len(all_targets)} targets were marked as valid")
 
-    command_list = [command.replace('{}', target) for target in all_targets]
+    
+    command_list = [{"command": command.replace('{}', target)} for target in all_targets]
     print(f"~~~  Example distirbuted command: '{command_list[0]}'")
     valid = input("Does this look correct? [Y/n]: ").strip().lower()
     if len(valid) > 0 and valid[0] != 'y':
         print('!!!  You said the command is wrong... stopping now')
         exit(2)
+    
+    # Add additional metadata to command
+    if additional_meta:
+        for command in command_list:
+            command.update(additional_meta)
 
     print(f"$$$ Sending {len(command_list)} commands to be distributed")
     result = uplink.send_distributed_commands(command_list)
@@ -122,7 +144,7 @@ def run_playbook(uplink: UplinkConnection, playbook: str, target: str, args: str
     for i in range(0, len(args)):
         manual_target[f'arg{i}'] = args[i]
     try:
-        playbook_module = importlib.import_module(f'radar.playbooks.{playbook}')
+        playbook_module = importlib.import_module(f'{const.PACKAGE_NAME}.playbooks.{playbook}')
         results = playbook_module.run(manual_target)
         print(results)
     except ModuleNotFoundError as mnfe:
@@ -134,6 +156,21 @@ def run_playbook(uplink: UplinkConnection, playbook: str, target: str, args: str
     except KeyboardInterrupt:
         print("!!!  Command cancelled by key interrupt")
     uplink.send_data(const.DEFAULT_TARGET_COLLECTION, manual_target)
+
+
+def run_commander(uplink: UplinkConnection, commander: str, args=[]):
+    print(f"###  Running AI commander: {commander}")
+    try:
+        commander_module = importlib.import_module(f"{const.PACKAGE_NAME}.commanders.{commander}")
+        commander_module.run(uplink, args)
+    except ModuleNotFoundError as mnfe:
+        print(f'!!!  Missing referenced Commander: {mnfe}')
+    except AttributeError as ae:
+        print(f'!!!  Malformed Commander, missing required attribute: {ae}')
+    except TypeError as te:
+        print(f'!!!  Malformed Commander, the run method must take in the following args (uplink: UplinkConnection, args: list): {te}')
+    except KeyboardInterrupt:
+        print("!!!  Command cancelled by key interrupt")
 
 
 def list_database_structure(uplink: UplinkConnection):
@@ -229,8 +266,9 @@ def dispatch(command: str, args=None):
     if command == 'info':
         get_info(uplink_connection)
     elif command == 'distribute':
-        distributed_command = args.command
-        distribute_command(uplink_connection, distributed_command)
+        distribute_command(uplink_connection, args.command, args.distrib_meta)
+    elif command == "commander":
+        run_commander(uplink_connection, args.commander, args.commander_args)
     elif command == 'playbook':
         run_playbook(uplink_connection, args.playbook, args.target, args.playbook_args)
     elif command == 'collection-list':
@@ -269,14 +307,21 @@ if __name__ == '__main__':
                                        "with a placeholder '{}' where the target(s) will get substituted separated by the 'into' keyword. " \
                                        "This could look like: " \
                                             "127.0.0.1, 192.168.1.0/24, 10.10.10.100-150, scanme.nmap.org INTO nmap {}")
+    distribute_parser.add_argument("distrib_meta",
+                                    type=str,
+                                    nargs="*",
+                                    default=[],
+                                    help="key=value pairs of arbitrary metadata to include with command (e.g. 'job_number=1')")
 
     playbook_parser = subparsers.add_parser('playbook', help="Manually run playbook")
+    valid_playbooks = [mod.name for mod in pkgutil.iter_modules(cyber_radar.playbooks.__path__)]
     playbook_parser.add_argument('-p',
                                  '--playbook',
                                  type=str,
                                  dest="playbook",
                                  required=True,
-                                 help="Name of playbook")
+                                 help="Name of playbook",
+                                 choices=valid_playbooks)
     playbook_parser.add_argument('-t',
                                  '--target',
                                  type=str,
@@ -288,6 +333,17 @@ if __name__ == '__main__':
                                  nargs="*",
                                  default=[],
                                  help="All arguments in a single string (separated by spaces)")
+    
+    commander_parser = subparsers.add_parser("commander", help="Run an AI commander")
+    valid_commander_selections = [mod.name for mod in pkgutil.iter_modules(cyber_radar.commanders.__path__)]
+    commander_parser.add_argument('commander',
+                                  help="Which AI commander to execute",
+                                  choices=valid_commander_selections)
+    commander_parser.add_argument("commander_args",
+                                 type=str,
+                                 nargs="*",
+                                 default=[],
+                                 help="Any arguments to give to commander (passed as a list separated by spaces)")
 
     list_collection_parser = subparsers.add_parser('collection-list', help="List available collections")
 

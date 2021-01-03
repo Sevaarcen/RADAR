@@ -19,6 +19,7 @@ import time
 import socket
 import sys
 import os
+import uuid
 
 
 class SystemCommand:
@@ -35,11 +36,12 @@ class SystemCommand:
         self.current_working_directory = os.getcwd()
         if additional_meta:
             self.additional_meta = additional_meta
+        self.uuid = str(uuid.uuid4())  # Generate an UUID for internal use and finding this command later in the DB
 
     def to_json(self):
         return self.__dict__
 
-    def run(self, silent=False):
+    def run(self):
         result = True
         self.execution_time_start = time.time()
         try:
@@ -52,13 +54,11 @@ class SystemCommand:
                 for stdout_line in subproc.stdout:
                     self.stdout += stdout_line
                     self.command_output += stdout_line
-                    if not silent:
-                        yield stdout_line.strip()
+                    yield stdout_line.strip()
                 for stderr_line in subproc.stderr:
                     self.stderr += stderr_line
                     self.command_output += stderr_line
-                    if not silent:
-                        yield stderr_line.strip()
+                    yield stderr_line.strip()
             # Record final variables
             self.command_return_code = subproc.wait()
             self.execution_time_end = time.time()

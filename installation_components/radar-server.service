@@ -1,0 +1,16 @@
+[Unit]
+Description=Run RADAR Uplink Server
+DefaultDependencies=no
+After=network.target
+
+[Service]
+Type=simple
+#User=cyber_radar
+#Group=cyber_radar
+ExecStart=radar-server.py
+#ExecStop=radar-ctl.py
+TimeoutStartSec=0
+RemainAfterExit=true
+
+[Install]
+WantedBy=default.target

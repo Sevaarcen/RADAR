@@ -38,12 +38,31 @@ class DistributedWatcher:
         thread.start()
 
     def __run_loop_once(self):
-        response = self.server_connection.get_distributed_command()
-        if not response:
+        command_dict = self.server_connection.get_distributed_command()
+        if not command_dict:
             return
-        print(f"$$$  Received distributed command: '{response}'")
-        system_command = SystemCommand(response, additional_meta={"run-mode": "distributed"})
-        command_completed = system_command.run(silent=True)  # Run w/o yielding output
+        command = command_dict.pop("command", None)  # Leaves the arbitrary metadata as remaining keys
+        if not command:
+            print(f"!!!  Received distributed command without 'command' key: '{command_dict}'")
+            return
+        
+        print(f"$$$  Received distributed command: '{command}'")
+        # Join w/ run-mode metadata
+        additional_meta={"run-mode": "distributed"}
+        command_dict.update(additional_meta)
+
+        system_command = SystemCommand(command, additional_meta=command_dict)
+        for _ in system_command.run():  # Run w/o yielding output
+            pass
+
+        # If not completed
+        if not system_command.execution_time_end:
+            print(f"$$$  Distributed command did not complete: '{command}'")
+            if command_dict.get("request_share", False):  # Add it to shared info so source knows it failed
+                command_dict.update({"command": command, "failed": True})
+                self.queue_add_func(const.DEFAULT_SHARE_COLLECTION, command_dict)
+            return
+        print(f"$$$  Distributed command completed at {system_command.execution_time_end}: '{command}'")
 
         # Get command output, parse it, and run playbooks
         command_json = system_command.to_json()
@@ -56,6 +75,12 @@ class DistributedWatcher:
         self.queue_add_func(const.DEFAULT_METADATA_COLLECTION, metadata)
         if len(targets) != 0:
             self.queue_add_func(const.DEFAULT_TARGET_COLLECTION, targets)
+        
+        # Check if command included request to put data in shared location (so it can be picked up by something else - e.g. a commander)
+        if command_dict.get("request_share", False):
+            share_dict = {"pull_command_uuid": system_command.uuid}
+            share_dict.update(command_dict)
+            self.queue_add_func(const.DEFAULT_SHARE_COLLECTION, share_dict)
 
         # Run again without waiting if finished
         self.__run_loop_once()

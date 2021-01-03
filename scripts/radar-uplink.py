@@ -23,6 +23,7 @@ import os
 import json
 import toml
 import atexit
+import asyncio
 
 from multiprocessing import Process, Manager
 from flask import Flask, request, Response
@@ -70,29 +71,40 @@ def start_sync_daemon(sync_interval):
     logger.debug("Sync daemon started")
 
 
-def sync_data(queue, connection, interval=10):
+def sync_data(queue, connection: ServerConnection, interval=10):
     global logger
     try:
         while True:
             logger.debug(f"Checking if data needs to be synced")
-            while len(queue) != 0:
-                logger.debug("Uplink send queue contains data - beginning syncing with RADAR Control Server")
-                to_sync = queue.pop()
+            
+            if len(queue) == 0:
+                time.sleep(interval)
+                continue
+            items_to_sync = []
+            while len(queue) > 0:
+                items_to_sync.append(queue.pop())
+            logger.info(f"Uplink send queue contains {len(items_to_sync)} items - beginning syncing with RADAR Control Server")
+
+            data_to_send = {}
+            for to_sync in items_to_sync:
                 items = to_sync.split(',', 2)
                 if len(items) != 3:
                     logger.warning(f"Invalid message in queue: {to_sync}")
                     return
-                try:
-                    mission = items[0]
-                    collection = items[1]
-                    data = json.loads(items[2])
-                    result = connection.send_to_database(mission, collection, data)
-                    logger.debug(f"Data was sucessfully sent... {len(queue)} requests remaining")
-                except json.decoder.JSONDecodeError:
-                    logger.error("Invalid JSON data in queue")
-                    logger.debug(items[1])
+                database = items[0]
+                collection = items[1]
+                data = json.loads(items[2])
+                if isinstance(data, list):
+                    for document in data:
+                        data_to_send.setdefault(database, {}).setdefault(collection, []).append(document)
+                else:
+                    data_to_send.setdefault(database, {}).setdefault(collection, []).append(data)
+            
+            # If there's data, sent all data to server for insertion
+            if data_to_send:
+                connection.bulk_send_data(data_to_send)
+            # Wait before next iteration
             time.sleep(interval)
-            sync_data(queue, connection, interval=interval)
     except KeyboardInterrupt:
         logger.debug("Stopping data sync, received keyboard interrupt")
 
@@ -116,7 +128,7 @@ def write_queue_file(queue):
 
 
 def append_to_sync_queue(collection: str, data: dict):
-    joined_data = f'{current_mission},{collection},{json.dumps(data)}'
+    joined_data = f'{const.MISSION_PREFIX}{current_mission},{collection},{json.dumps(data)}'
     global send_queue
     send_queue.append(joined_data)
 
@@ -232,6 +244,38 @@ def get_data():
     database = request.args.get("database", f"{const.MISSION_PREFIX}{current_mission}")
     global uplink_connection
     con_resp = uplink_connection.get_database_contents(database, collection)
+    return json.dumps(con_resp)
+
+
+@app.route("/database/data/query", methods=["POST"])
+def query_data():
+    collection = request.args.get("collection")
+    if not collection:
+        return "Missing 'collection' argument", 400
+    global current_mission
+    database = request.args.get("database", f"{const.MISSION_PREFIX}{current_mission}")
+
+    query_filter = request.get_json(silent=True)
+    if not query_filter:
+        return 'Missing query as JSON payload, aborting', 400
+    global uplink_connection
+    con_resp = uplink_connection.query_database(database, collection, query_filter)
+    return json.dumps(con_resp)
+
+
+@app.route("/database/data/pop", methods=["POST"])
+def pop_data():
+    collection = request.args.get("collection")
+    if not collection:
+        return "Missing 'collection' argument", 400
+    global current_mission
+    database = request.args.get("database", f"{const.MISSION_PREFIX}{current_mission}")
+
+    query_filter = request.get_json(silent=True)
+    if not query_filter:
+        return 'Missing query as JSON payload, aborting', 400
+    global uplink_connection
+    con_resp = uplink_connection.pop_shared_data(database, collection, query_filter)
     return json.dumps(con_resp)
 
 
