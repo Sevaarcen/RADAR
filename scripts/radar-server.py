@@ -115,7 +115,7 @@ def get_mission_list():
 
 
 # Raw connection to list contents of database
-@app.route('/database/<db_name>/<collection_name>/list', methods=['GET'])
+@app.route('/database/<db_name>/<collection_name>/list', methods=['GET', 'POST'])
 def database_list_data(db_name, collection_name):
     """ This method provides a full list of the contents of a specific database collection.
     This method will protect the database. Protected databases are not accessible via this method.
@@ -138,9 +138,64 @@ def database_list_data(db_name, collection_name):
     global database_client
     database = database_client[db_name]
     collection = database[collection_name]
-    query_results = collection.find()
-    json_string = bson.json_util.dumps(query_results)
-    return jsonify(json.loads(json_string)), 200
+    # Simple GET means retrieve all data
+    if request.method == "GET":
+        query_results = collection.find()
+        json_string = bson.json_util.dumps(query_results)
+        return jsonify(json.loads(json_string)), 200
+    # Post means use JSON filter to only get specific results
+    elif request.method == "POST":
+        query_filter = request.get_json(silent=True)
+        if not query_filter:
+            return "User failed to specify filter as JSON payload of POST request", 400
+        query_results = collection.find(query_filter)
+        json_string = bson.json_util.dumps(query_results)
+        return jsonify(json.loads(json_string)), 200
+
+
+@app.route('/database/<db_name>/<collection_name>/pop', methods=['POST'])
+def database_pop_data(db_name, collection_name):
+    """[summary]
+
+    Args:
+        db_name (str): Name of database (must be a mission)
+        collection_name (str): Name of collection (must be the share collection)
+
+    Returns:
+        [type]: [description]
+    """
+    # make sure client is authorized with superuser permissions (since we're deleting data)
+    if not is_authorized(superuser_permissions=True):
+        return 'Unauthorized user, must have SU permissions', 401
+    # Make sure DB isn't protected or restricted
+    if db_name in const.PROTECTED_DATABASES or db_name in const.RESTRICTED_DATABASES:
+        return "The database is not valid and cannot be popped from the API", 403
+    # Make sure collection is labelled as the collection where temp data is shared
+    if collection_name != const.DEFAULT_SHARE_COLLECTION:
+        return "Can only pop data from share collection", 400
+    # Wrangle filter for what to pop (e.g. by commander id)
+    query_filter = request.get_json(silent=True)
+    if not query_filter:
+        return "User failed to specify filter as JSON payload of POST request", 400
+
+    stdout.write(f'###  Popping data from {db_name}.{collection_name}\n')
+    stdout.flush()
+
+    # Now we are ready to gather and then delete data
+    global database_client
+    database = database_client[db_name]
+    collection = database[collection_name]
+
+    # Gather results
+    find_results = collection.find(query_filter)
+    json_result_string = bson.json_util.dumps(find_results)
+
+    # Then delete them (hence the pop)
+    delete_results = collection.delete_many(query_filter)
+    stdout.write(f'$$$  Popped {delete_results.deleted_count} documents from {db_name}.{collection_name}\n')
+    stdout.flush()    
+
+    return jsonify(json.loads(json_result_string)), 200
 
 
 # Raw connection to insert into database
@@ -190,6 +245,43 @@ def database_insert_data(db_name, collection_name):
         return "Invalid data, it must be base 64 encoded json", 400
 
     return 'Inserted data successfully', 200
+
+
+# Raw connection to insert into database
+@app.route('/database/bulk-insert', methods=['POST'])
+def bulk_insert_data():
+    """ This method will insert the POST data from the request into the specified database's collection.
+    :return: A tuple containg a plain-text response and HTTP status code
+    """
+    if not is_authorized():
+        return 'Unauthorized user', 401
+    
+    insert_data_dict = request.get_json(silent=True)
+    if not insert_data_dict:
+        return "User failed to specify bulk insert data as JSON payload of POST request", 400
+
+    stdout.write(f'###  Database performing bulk insert of data\n')
+    stdout.flush()
+
+    # Double check the databases are valid before trying to write anything
+    for db_name in insert_data_dict.keys():
+        if db_name in const.PROTECTED_DATABASES:
+            return 'Cannot access protected databased via API', 403
+        elif db_name in const.RESTRICTED_DATABASES:
+            return "Cannot bulk write to restricted databases", 403
+
+    # Insert requested data
+    global database_client
+    success_count = 0
+    for database_name, database_dict in insert_data_dict.items():
+        for collection_name, document_list in database_dict.items():
+            stdout.write(f"---  Inserting {len(document_list)} documents into {database_name}.{collection_name}\n")
+            stdout.flush()
+            result = database_client[database_name][collection_name].insert_many(document_list)
+            success_count += len(result.inserted_ids)
+    stdout.write(f'###  During a bulk write, successfully inserted a total of {success_count} documents into the database\n')
+    stdout.flush()
+    return f"Successfully inserted {success_count} documents into the database", 200
 
 
 @app.route('/clients/request', methods=['GET'])
@@ -250,6 +342,8 @@ def authorize_client():
 
 @app.route('/clients/deauthorize', methods=['GET'])
 def deauthorize_client():
+    """ For a given API key, remove it from the list of authorized clients. Only callable by superusers.
+    """
     key = request.args.get('key')
     if not key:
         return 'You must specify an API key to deauthorize', 400
@@ -266,29 +360,38 @@ def deauthorize_client():
 
 @app.route('/distributed/get', methods=['GET'])
 def pop_distributed_command():
+    """ Returns a JSON element that contains a system command
+    """
     if not is_authorized():
         return 'You are not authorized', 401
     global distributed_command_queue
     if len(distributed_command_queue) == 0:
         return "Nothing in queue", 304
     else:
-        return str(distributed_command_queue.pop()), 200
+        return distributed_command_queue.pop(), 200
 
 
 @app.route('/distributed/add', methods=['POST'])
 def add_distributed_command():
+    """ Endpoint used to add arbitrary system commands to a queue that clients will pull from.
+    Only superusers can add commands to this queue (for security and integrity reasons).
+    Commands in this queue are dicts that contain the 'command' key and option arbitrary metadata in other keys.
+    """
     if not is_authorized(superuser_permissions=True):
         return 'You must be a superuser', 401
-    encoded_data = request.get_data()
     try:
-        command_list = json.loads(base64.b64decode(encoded_data).decode())
+        command_list = request.get_json()
         if not isinstance(command_list, list):
-            raise TypeError("Not a list")
-    except (TypeError, ValueError, binascii.Error):
-        return 'Malformed data', 400
+            raise TypeError(f"Not a list, was given a {type(command_list)}")
+        for command in command_list:
+            if not isinstance(command, dict) or not command.get("command"):
+                raise ValueError(f"Invalid command dict in list - missing 'command' key - {command}")
+    except (TypeError, ValueError) as err:
+        return f'Malformed data: {err}', 400
     global distributed_command_queue
     # Append new commands into queue
-    distributed_command_queue += command_list
+    for command in command_list:
+        distributed_command_queue.insert(0, command)
     return 'Added command to queue', 200
 
 
@@ -327,7 +430,7 @@ def is_authorized(superuser_permissions=False):
 
 
 # Return number of authorized clients
-def number_of_clients():
+def number_of_clients() -> int:
     """ This internal method returns the number of authorized clients in the database.
     :return: The number of authorized clients.
     """

@@ -46,7 +46,9 @@ class CommandParserManager:
             else:
                 parser_module = importlib.import_module(f'{const.PACKAGE_NAME}.parsers.{module_to_load}')
                 metadata, target_data = parser_module.run(self.current_command)
-                self.metadata_results_buffer.update({parser_module.MODULE_NAME: metadata})
+                self.metadata_results_buffer.update({module_to_load: metadata})
+                for target in target_data:  # Make sure each target says where it came from
+                    target['source_command'] = self.current_command.uuid
                 self.target_results_buffer += target_data
         except ModuleNotFoundError as mnfe:
             print(f'!!!  Missing referenced parser: {mnfe}')
@@ -61,7 +63,7 @@ class CommandParserManager:
         :return: Two JSON dictionaries - metadata and target data
         """
         self.current_command = command
-        self.metadata_results_buffer = {"RAW_COMMAND": command.to_json()}
+        self.metadata_results_buffer = {"SOURCE_UUID": command.uuid, "RAW_COMMAND": command.to_json()}
         self.target_results_buffer = []
         matches = self.rules.match(data=command.command_output, externals={"ext_command": command.command}, callback=self.yara_callback, which_callbacks=yara.CALLBACK_MATCHES)
         return self.metadata_results_buffer, self.target_results_buffer

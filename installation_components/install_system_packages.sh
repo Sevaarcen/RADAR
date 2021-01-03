@@ -5,8 +5,8 @@ if [ `id -u` != 0 ]; then
 fi
 
 echo "Determining package manager to use..."
-if [ -n "$(which apt-get)" ]; then
-    pmgr="apt-get"
+if [ -n "$(which apt)" ]; then
+    pmgr="apt"
 elif [ -n "$(which yum)" ]; then
     pmgr="yum"
 elif [ -n "$(which dnf)" ]; then

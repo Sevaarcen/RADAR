@@ -26,12 +26,18 @@ SERVER_CONFIG = "config/server_config.toml"
 PARSER_RULES = "rules/parsing_rules.yara"
 PLAYBOOK_RULES = "rules/playbook_rules.yara"
 
+# Helpful regexes for working with target info
+IPADDR_REX = '^([0-9]{1,3}\.){3}[0-9]{1,3}$'
+IPRANGE_REX = '^([0-9]{1,3}\.){3}[0-9]{1,3} *\- *([0-9]{1,3}\.){0,3}[0-9]{1,3}$'
+IPCIDR_REX = '^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$'
+
 # For client/server database controls
 MISSION_PREFIX = "mission-"
 DEFAULT_MISSION = "default"
 DEFAULT_COMMAND_COLLECTION = 'raw-commands'
 DEFAULT_METADATA_COLLECTION = 'command-metadata'
 DEFAULT_TARGET_COLLECTION = 'targets'
+DEFAULT_SHARE_COLLECTION = 'shared-data'
 
 # Databases which the API shouldn't access
 PROTECTED_DATABASES = [

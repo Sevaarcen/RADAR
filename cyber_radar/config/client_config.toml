@@ -16,6 +16,9 @@
 
 uplink_port = 1684
 
+# Number of seconds before re-polling the share collection to see if all distributed commands finished
+commander_poll_interval = 15
+
 # if rules are at a non-default location, change it below
 #[rules]
 #parser_rules = "parsing_rules.yara"
