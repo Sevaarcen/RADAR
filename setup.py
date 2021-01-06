@@ -46,7 +46,7 @@ scripts = [
 
 setuptools.setup(
     name="cyber-radar",
-    version="0.3.2",
+    version="0.3.3",
     author="Cole Daubenspeck",
     author_email="coleipod@gmail.com",
     description="A framework to support a Red-team Analysis, Documentation, and Automation Revolution!",

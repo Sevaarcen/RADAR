@@ -23,7 +23,6 @@ import os
 import json
 import toml
 import atexit
-import asyncio
 
 from multiprocessing import Process, Manager
 from flask import Flask, request, Response
@@ -194,8 +193,10 @@ def modify_authorization():
     api_key = request.args.get("api_key")
     if not api_key:
         return "No API key specified", 400
-    superuser = request.args.get("superuser", False)
-    authorizing = request.args.get("authorizing", True)
+    is_su_string = request.args.get("superuser", "False", type=str)
+    superuser = json.load(is_su_string.lower())
+    is_auth_str = request.args.get("authorizing", "True", type=str)
+    authorizing = json.load(is_auth_str.lower())
     global uplink_connection
     result = uplink_connection.modify_authorization(api_key, superuser=superuser, authorizing=authorizing)
     if not result:
