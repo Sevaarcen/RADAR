@@ -153,11 +153,11 @@ class ServerConnection:
                 self.logger.error(f'Could not create api key file: {pe}')
                 self.logger.info(self.api_key)
 
-    def modify_authorization(self, username, superuser=False, authorizing=True):
+    def modify_authorization(self, api_key, superuser=False, authorizing=True):
         if authorizing:
-            full_request_url = f'{self.server_url}/clients/authorize?key={username}&superuser={superuser}'
+            full_request_url = f'{self.server_url}/clients/authorize?key={api_key}&superuser={superuser}'
         else:
-            full_request_url = f'{self.server_url}/clients/deauthorize?key={username}'
+            full_request_url = f'{self.server_url}/clients/deauthorize?key={api_key}'
         auth_cookie = {'key': self.api_key}
         req = requests.get(full_request_url, cookies=auth_cookie, verify=self._verify_host)
         if req.status_code != 200:

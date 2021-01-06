@@ -194,8 +194,8 @@ def modify_authorization():
     api_key = request.args.get("api_key")
     if not api_key:
         return "No API key specified", 400
-    superuser = request.args.get("superuser", False, type=bool)
-    authorizing = request.args.get("authorizing", True, type=bool)
+    superuser = request.args.get("superuser", False)
+    authorizing = request.args.get("authorizing", True)
     global uplink_connection
     result = uplink_connection.modify_authorization(api_key, superuser=superuser, authorizing=authorizing)
     if not result:
