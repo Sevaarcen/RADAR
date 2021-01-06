@@ -190,7 +190,7 @@ def is_authorized():
 
 #@method
 @app.route("/authorization/modify", methods=["POST"])
-def modify_authorization(api_key, superuser=False, authorizing=True):
+def modify_authorization():
     api_key = request.args.get("api_key")
     if not api_key:
         return "No API key specified", 400

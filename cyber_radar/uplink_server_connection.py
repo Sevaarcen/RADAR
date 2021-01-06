@@ -303,8 +303,8 @@ class ServerConnection:
             self.logger.debug(f"Got command from distributed queue: {req.json()}")
             return req.json()
         elif req.status_code == 304:
-            return {} 
+            return {}
         else:
             self.logger.error(f"HTTP Code received while getting distributed command: {req.status_code}")
-            response = req.json()
+            response = req.text
             self.logger.debug(response)
