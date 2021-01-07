@@ -166,7 +166,7 @@ def run(uplink: UplinkConnection, args: list):
 
             # Check if there's any stuck jobs that should be re-distributed
             if outstanding_jobs and oldest_job_number == outstanding_jobs[0]:  # Oldest hasn't been completed and is still the oldest
-                tqdm.write(f"Job {oldest_job_number} may be stuck - distribute manually if it is - '{host_identification_command_list[0]}'")
+                tqdm.write(f"Job {oldest_job_number} may be stuck - distribute manually if it is - '{host_identification_command_list[oldest_job_number]}'")
                 tqdm.write(f"Remaining jobs:  {outstanding_jobs}")
 
             # Pull back details on every valid target
@@ -217,7 +217,7 @@ def run(uplink: UplinkConnection, args: list):
         intense_scan_command_list.append(command_dict)
     
     # distribute fast scan commands
-    print(f"###  Performing a quick scan using {num_valid_targets} distributed commands")
+    print(f"###  Performing intense network scans using {num_valid_targets} distributed commands")
     uplink.send_distributed_commands(intense_scan_command_list)
 
     # poll share list until all commands are finished
@@ -255,7 +255,7 @@ def run(uplink: UplinkConnection, args: list):
 
             # Check if there's any stuck jobs that should be re-distributed
             if outstanding_jobs and oldest_job_number == outstanding_jobs[0]:  # Oldest hasn't been completed and is still the oldest
-                tqdm.write(f"Job {oldest_job_number} may be stuck - distribute manually if it is - '{host_identification_command_list[0]}'")
+                tqdm.write(f"Job {oldest_job_number} may be stuck - distribute manually if it is - '{intense_scan_command_list[oldest_job_number]}'")
                 tqdm.write(f"Remaining jobs:  {outstanding_jobs}")
 
             # Pull back details on every valid target
@@ -300,7 +300,7 @@ def run(uplink: UplinkConnection, args: list):
     print(f"$$$  Performing a UDP scan of the {num_valid_targets} online targets")
 
     udp_scan_command_list = []
-    udp_scan_commandstr = f"nmap TARGET -T{DEFAULT_SCAN_TIMING} --top-ports {UDP_TOP_PORTS_COUNT} -sU -Pn"
+    udp_scan_commandstr = f"nmap TARGET -T{DEFAULT_SCAN_TIMING} --top-ports {UDP_TOP_PORTS_COUNT} -sU -sV -Pn"
     for num, target in enumerate(identified_targets):
         command = udp_scan_commandstr.replace("TARGET", target)
         command_dict = {
@@ -312,7 +312,7 @@ def run(uplink: UplinkConnection, args: list):
         udp_scan_command_list.append(command_dict)
     
     # distribute fast scan commands
-    print(f"###  Performing a quick scan using {num_valid_targets} distributed commands")
+    print(f"###  Performing a UDP scan using {num_valid_targets} distributed commands")
     uplink.send_distributed_commands(udp_scan_command_list)
 
     # poll share list until all commands are finished
@@ -350,7 +350,7 @@ def run(uplink: UplinkConnection, args: list):
 
             # Check if there's any stuck jobs that should be re-distributed
             if outstanding_jobs and oldest_job_number == outstanding_jobs[0]:  # Oldest hasn't been completed and is still the oldest
-                tqdm.write(f"Job {oldest_job_number} may be stuck - distribute manually if it is - '{host_identification_command_list[0]}'")
+                tqdm.write(f"Job {oldest_job_number} may be stuck - distribute manually if it is - '{udp_scan_command_list[oldest_job_number]}'")
                 tqdm.write(f"Remaining jobs:  {outstanding_jobs}")
 
             # Pull back details on every valid target
