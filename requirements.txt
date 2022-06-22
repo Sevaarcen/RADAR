@@ -17,5 +17,5 @@ six~=1.12
 urllib3~=1.25
 Werkzeug~=0.16
 tqdm~=4.55
-numpy==1.19.3  # Version prior to bug causing Pandas to be unusable
+numpy==1.22.0  # Version prior to bug causing Pandas to be unusable
 pandas~=1.2.0
